@@ -4,6 +4,12 @@ Application Flutter de **gestion financière personnelle** — Gérez mieux. Éc
 
 Application réelle développée en Flutter, reproduisant fidèlement le design d'un prototype (iPhone frame) : tokens de design, typographie Inter, palette verte, dark mode.
 
+## 🔄 Pipeline CI/CD
+
+Le pipeline CI/CD du projet (Gitflow, tests, SonarQube, Docker, Terraform, K8S, observabilité) :
+
+![Pipeline CI/CD — SamaPoche (Flutter + Supabase)](https://koboyo.com/e/d77de1ed-e27b-4155-b385-fda7e84cc06d/0d2fecf1-13de-48b8-aa9c-6bd697f9c515.svg)
+
 ## ✨ Fonctionnalités
 
 | Écran | Description |
