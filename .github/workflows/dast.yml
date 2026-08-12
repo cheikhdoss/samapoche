@@ -1,0 +1,24 @@
+name: DAST — Scan de sécurité applicatif (OWASP ZAP)
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Build & push des images Docker]
+    types: [completed]
+    branches: [dev]
+
+jobs:
+  scan:
+    name: Scan DAST sur l'environnement de staging
+    runs-on: ubuntu-latest
+    if: ${{ secrets.STAGING_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan complet OWASP ZAP
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ secrets.STAGING_URL }}
+          allow_404_warnings: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rapport-dast-zap
+          path: report_html.html
