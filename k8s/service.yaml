@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: samapoche-web
+  labels:
+    app: samapoche
+spec:
+  type: LoadBalancer
+  selector:
+    app: samapoche
+  ports:
+    - port: 80
+      targetPort: 80
