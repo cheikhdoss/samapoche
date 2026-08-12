@@ -10,16 +10,18 @@ jobs:
   scan:
     name: Scan DAST sur l'environnement de staging
     runs-on: ubuntu-latest
+    env:
+      STAGING_URL: ${{ secrets.STAGING_URL }}
     steps:
       - uses: actions/checkout@v4
       - name: Scan complet OWASP ZAP
-        if: ${{ secrets.STAGING_URL != '' }}
+        if: ${{ env.STAGING_URL != '' }}
         uses: zaproxy/action-full-scan@v0.12.0
         with:
           target: ${{ secrets.STAGING_URL }}
           allow_404_warnings: true
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.STAGING_URL != '' }}
+        if: ${{ env.STAGING_URL != '' }}
         with:
           name: rapport-dast-zap
           path: report_html.html
