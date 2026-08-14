@@ -19,7 +19,17 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
-enum RouteName { welcome, login, signup, home, transactions, assistant, profile, notifications, addTransaction }
+enum RouteName {
+  welcome,
+  login,
+  signup,
+  home,
+  transactions,
+  assistant,
+  profile,
+  notifications,
+  addTransaction,
+}
 
 class _RootShellState extends State<RootShell> {
   RouteName route = RouteName.welcome;
@@ -32,7 +42,12 @@ class _RootShellState extends State<RootShell> {
   void switchTab(int i) {
     setState(() {
       tab = i;
-      route = [RouteName.home, RouteName.transactions, RouteName.assistant, RouteName.profile][i];
+      route = [
+        RouteName.home,
+        RouteName.transactions,
+        RouteName.assistant,
+        RouteName.profile,
+      ][i];
     });
   }
 
@@ -44,16 +59,25 @@ class _RootShellState extends State<RootShell> {
       RouteName.welcome => WelcomeScreen(go: go),
       RouteName.login => LoginScreen(go: go),
       RouteName.signup => SignupScreen(go: go),
-      RouteName.home => HomeScreen(onOpenNotifications: openNotifications, onGo: go),
+      RouteName.home => HomeScreen(
+        onOpenNotifications: openNotifications,
+        onGo: go,
+      ),
       RouteName.transactions => const TransactionsScreen(),
       RouteName.assistant => const AssistantScreen(),
       RouteName.profile => ProfileScreen(go: go),
       RouteName.notifications => NotificationsScreen(go: go),
-      RouteName.addTransaction => AddTransactionScreen(onClose: () => go(RouteName.home)),
+      RouteName.addTransaction => AddTransactionScreen(
+        onClose: () => go(RouteName.home),
+      ),
     };
 
-    final showTabs = user != null &&
-        (route == RouteName.home || route == RouteName.transactions || route == RouteName.assistant || route == RouteName.profile);
+    final showTabs =
+        user != null &&
+        (route == RouteName.home ||
+            route == RouteName.transactions ||
+            route == RouteName.assistant ||
+            route == RouteName.profile);
 
     final showFab = user != null && route == RouteName.home;
 
@@ -64,10 +88,7 @@ class _RootShellState extends State<RootShell> {
             duration: const Duration(milliseconds: 250),
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
-            child: KeyedSubtree(
-              key: ValueKey(route),
-              child: screen,
-            ),
+            child: KeyedSubtree(key: ValueKey(route), child: screen),
           ),
           if (showFab)
             Positioned(
@@ -75,7 +96,9 @@ class _RootShellState extends State<RootShell> {
               bottom: 96,
               child: FloatingActionButton(
                 onPressed: () => go(RouteName.addTransaction),
-                backgroundColor: AppState.I.darkMode ? AppDark.accent : AppColors.accent,
+                backgroundColor: AppState.I.darkMode
+                    ? AppDark.accent
+                    : AppColors.accent,
                 foregroundColor: Colors.white,
                 elevation: 4,
                 shape: const CircleBorder(),
@@ -84,7 +107,9 @@ class _RootShellState extends State<RootShell> {
             ),
         ],
       ),
-      bottomNavigationBar: showTabs ? AppTabBar(current: tab, onTap: switchTab) : null,
+      bottomNavigationBar: showTabs
+          ? AppTabBar(current: tab, onTap: switchTab)
+          : null,
     );
   }
 }

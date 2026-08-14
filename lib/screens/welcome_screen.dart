@@ -23,17 +23,29 @@ class WelcomeScreen extends StatelessWidget {
                 color: accent,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: const Icon(Icons.savings_rounded, color: Colors.white, size: 44),
+              child: const Icon(
+                Icons.savings_rounded,
+                color: Colors.white,
+                size: 44,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
               'SamaPoche',
-              style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -0.03, fontFamily: 'Inter'),
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.03,
+                fontFamily: 'Inter',
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'Gérez mieux. Économisez plus.',
-              style: TextStyle(fontSize: 17, color: context.isDark ? AppDark.muted : AppColors.muted),
+              style: TextStyle(
+                fontSize: 17,
+                color: context.isDark ? AppDark.muted : AppColors.muted,
+              ),
             ),
             const Spacer(),
             AppButton(

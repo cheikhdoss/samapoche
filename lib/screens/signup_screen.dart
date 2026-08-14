@@ -24,7 +24,12 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _terms = false;
   bool _loading = false;
 
-  String? _firstError, _lastError, _emailError, _phoneError, _passError, _confirmError;
+  String? _firstError,
+      _lastError,
+      _emailError,
+      _phoneError,
+      _passError,
+      _confirmError;
 
   @override
   void dispose() {
@@ -46,17 +51,30 @@ class _SignupScreenState extends State<SignupScreen> {
       _passError = _pass.text.isEmpty
           ? 'Mot de passe requis'
           : _pass.text.length < 8
-              ? '8 caractères minimum'
-              : null;
+          ? '8 caractères minimum'
+          : null;
       _confirmError = _confirm.text.isEmpty
           ? 'Confirmation requise'
           : _confirm.text != _pass.text
-              ? 'Les mots de passe ne correspondent pas'
-              : null;
+          ? 'Les mots de passe ne correspondent pas'
+          : null;
     });
-    if ([_firstError, _lastError, _emailError, _phoneError, _passError, _confirmError].any((e) => e != null)) return;
+    if ([
+      _firstError,
+      _lastError,
+      _emailError,
+      _phoneError,
+      _passError,
+      _confirmError,
+    ].any((e) => e != null)) {
+      return;
+    }
     if (!_terms) {
-      showToast(context, 'Veuillez accepter les conditions d\'utilisation', ToastType.warning);
+      showToast(
+        context,
+        'Veuillez accepter les conditions d\'utilisation',
+        ToastType.warning,
+      );
       return;
     }
 
@@ -90,11 +108,15 @@ class _SignupScreenState extends State<SignupScreen> {
     final fg2 = isDark ? AppDark.fg2 : AppColors.fg2;
 
     InputDecoration dec(String label, String? error) => InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: meta, fontSize: 14, fontWeight: FontWeight.w500),
-          floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w500),
-          errorText: error,
-        );
+      labelText: label,
+      labelStyle: TextStyle(
+        color: meta,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w500),
+      errorText: error,
+    );
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -111,7 +133,10 @@ class _SignupScreenState extends State<SignupScreen> {
                   children: [
                     const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
                     const SizedBox(width: 8),
-                    const Text('Retour', style: TextStyle(fontSize: 14, fontFamily: 'Inter')),
+                    const Text(
+                      'Retour',
+                      style: TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                    ),
                   ],
                 ),
               ),
@@ -119,7 +144,11 @@ class _SignupScreenState extends State<SignupScreen> {
             const SizedBox(height: 24),
             const Text(
               'Créer un compte',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Inter',
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -145,22 +174,40 @@ class _SignupScreenState extends State<SignupScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: dec('Email', _emailError)),
+            TextField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              decoration: dec('Email', _emailError),
+            ),
             const SizedBox(height: 16),
-            TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: dec('Téléphone', _phoneError)),
+            TextField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              decoration: dec('Téléphone', _phoneError),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: _pass,
               obscureText: !_showPass,
               decoration: dec('Mot de passe', _passError).copyWith(
                 suffixIcon: IconButton(
-                  icon: Icon(_showPass ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: meta),
+                  icon: Icon(
+                    _showPass
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    size: 20,
+                    color: meta,
+                  ),
                   onPressed: () => setState(() => _showPass = !_showPass),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            TextField(controller: _confirm, obscureText: !_showPass, decoration: dec('Confirmer le mot de passe', _confirmError)),
+            TextField(
+              controller: _confirm,
+              obscureText: !_showPass,
+              decoration: dec('Confirmer le mot de passe', _confirmError),
+            ),
             const SizedBox(height: 20),
             GestureDetector(
               onTap: () => setState(() => _terms = !_terms),
@@ -174,10 +221,15 @@ class _SignupScreenState extends State<SignupScreen> {
                     margin: const EdgeInsets.only(top: 2),
                     decoration: BoxDecoration(
                       color: _terms ? accent : Colors.transparent,
-                      border: Border.all(color: _terms ? accent : borderSoft, width: 2),
+                      border: Border.all(
+                        color: _terms ? accent : borderSoft,
+                        width: 2,
+                      ),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: _terms ? const Icon(Icons.check, color: Colors.white, size: 12) : null,
+                    child: _terms
+                        ? const Icon(Icons.check, color: Colors.white, size: 12)
+                        : null,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -188,12 +240,18 @@ class _SignupScreenState extends State<SignupScreen> {
                         children: [
                           TextSpan(
                             text: 'conditions d\'utilisation',
-                            style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: accent,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           TextSpan(text: ' et la '),
                           TextSpan(
                             text: 'politique de confidentialité',
-                            style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: accent,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -203,7 +261,12 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            AppButton(label: "S'inscrire", primary: true, loading: _loading, onPressed: _signup),
+            AppButton(
+              label: "S'inscrire",
+              primary: true,
+              loading: _loading,
+              onPressed: _signup,
+            ),
             const SizedBox(height: 20),
             Center(
               child: Text(
@@ -217,7 +280,11 @@ class _SignupScreenState extends State<SignupScreen> {
                 onTap: () => widget.go(RouteName.login),
                 child: Text(
                   'Se connecter',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accent),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                  ),
                 ),
               ),
             ),

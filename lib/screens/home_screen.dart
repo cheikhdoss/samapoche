@@ -34,10 +34,17 @@ class HomeScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Bonjour', style: TextStyle(fontSize: 14, color: muted)),
+                        Text(
+                          'Bonjour',
+                          style: TextStyle(fontSize: 14, color: muted),
+                        ),
                         Text(
                           user.firstName,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Inter',
+                          ),
                         ),
                       ],
                     ),
@@ -54,7 +61,11 @@ class HomeScreen extends StatelessWidget {
                       child: Stack(
                         children: [
                           const Center(
-                            child: Icon(Icons.notifications_none_rounded, size: 22, color: AppColors.fg2),
+                            child: Icon(
+                              Icons.notifications_none_rounded,
+                              size: 22,
+                              color: AppColors.fg2,
+                            ),
                           ),
                           Positioned(
                             top: 7,
@@ -62,7 +73,10 @@ class HomeScreen extends StatelessWidget {
                             child: Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
+                              decoration: const BoxDecoration(
+                                color: AppColors.danger,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
                         ],
@@ -83,7 +97,13 @@ class HomeScreen extends StatelessWidget {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: const Color(0xFF16A34A).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 4))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,12 +143,20 @@ class HomeScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   '+${formatMontant(s.monthIncome)} F',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF86EFAC), fontFamily: 'Inter'),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF86EFAC),
+                                    fontFamily: 'Inter',
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   'Revenus mensuels',
-                                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7)),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
                                 ),
                               ],
                             ),
@@ -147,12 +175,20 @@ class HomeScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   '−${formatMontant(s.monthExpense)} F',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFFFCA5A5), fontFamily: 'Inter'),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFFCA5A5),
+                                    fontFamily: 'Inter',
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   'Dépenses mensuelles',
-                                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7)),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
                                 ),
                               ],
                             ),
@@ -167,30 +203,44 @@ class HomeScreen extends StatelessWidget {
 
               // Insight
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? AppDark.accentSoft : AppColors.accentSoft,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.trending_up_rounded,
-                        size: 20, color: isDark ? AppDark.accent : AppColors.accent),
+                    Icon(
+                      Icons.trending_up_rounded,
+                      size: 20,
+                      color: isDark ? AppDark.accent : AppColors.accent,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text.rich(
                         TextSpan(
-                          style: TextStyle(fontSize: 14, height: 1.4, color: isDark ? AppDark.fg : AppColors.fg),
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.4,
+                            color: isDark ? AppDark.fg : AppColors.fg,
+                          ),
                           children: [
                             const TextSpan(text: 'Vous avez économisé '),
                             TextSpan(
                               text: '12%',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? AppDark.accent : AppColors.accent,
+                                color: isDark
+                                    ? AppDark.accent
+                                    : AppColors.accent,
                               ),
                             ),
-                            const TextSpan(text: ' de plus ce mois-ci. Continuez ainsi !'),
+                            const TextSpan(
+                              text: ' de plus ce mois-ci. Continuez ainsi !',
+                            ),
                           ],
                         ),
                       ),
@@ -207,16 +257,26 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SectionTitle('Budget Alimentation', link: 'Détails', onLink: () => _showBudgetModal(context)),
+                    SectionTitle(
+                      'Budget Alimentation',
+                      link: 'Détails',
+                      onLink: () => _showBudgetModal(context),
+                    ),
                     const SizedBox(height: 12),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(999),
                       child: LinearProgressIndicator(
                         value: s.budgetPct,
                         minHeight: 8,
-                        backgroundColor: isDark ? AppDark.borderSoft : AppColors.borderSoft,
+                        backgroundColor: isDark
+                            ? AppDark.borderSoft
+                            : AppColors.borderSoft,
                         valueColor: AlwaysStoppedAnimation(
-                          s.budgetPct >= 0.85 ? AppColors.danger : s.budgetPct >= 0.6 ? AppColors.warn : AppColors.accent,
+                          s.budgetPct >= 0.85
+                              ? AppColors.danger
+                              : s.budgetPct >= 0.6
+                              ? AppColors.warn
+                              : AppColors.accent,
                         ),
                       ),
                     ),
@@ -224,10 +284,14 @@ class HomeScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('${formatFCFA(s.budgetSpent)} dépensés',
-                            style: TextStyle(fontSize: 14, color: muted)),
-                        Text('${formatFCFA(s.budgetRemaining)} restants',
-                            style: TextStyle(fontSize: 14, color: muted)),
+                        Text(
+                          '${formatFCFA(s.budgetSpent)} dépensés',
+                          style: TextStyle(fontSize: 14, color: muted),
+                        ),
+                        Text(
+                          '${formatFCFA(s.budgetRemaining)} restants',
+                          style: TextStyle(fontSize: 14, color: muted),
+                        ),
                       ],
                     ),
                   ],
@@ -240,7 +304,11 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SectionTitle('Répartition des dépenses', link: 'Voir tout', onLink: () => _goTransactions(context)),
+                    SectionTitle(
+                      'Répartition des dépenses',
+                      link: 'Voir tout',
+                      onLink: () => _goTransactions(context),
+                    ),
                     const SizedBox(height: 16),
                     const _DonutChart(),
                   ],
@@ -250,7 +318,15 @@ class HomeScreen extends StatelessWidget {
               // Recent transactions
               SectionTitle('Transactions récentes'),
               const SizedBox(height: 8),
-              ...s.transactions.take(5).map((t) => _TxnRow(txn: t, now: now, onTap: () => _goTransactions(context))),
+              ...s.transactions
+                  .take(5)
+                  .map(
+                    (t) => _TxnRow(
+                      txn: t,
+                      now: now,
+                      onTap: () => _goTransactions(context),
+                    ),
+                  ),
             ],
           );
         },
@@ -262,7 +338,11 @@ class HomeScreen extends StatelessWidget {
     if (onGo != null) {
       onGo!(RouteName.transactions);
     } else {
-      showToast(context, 'Voir toutes les transactions dans l\'onglet Transactions', ToastType.info);
+      showToast(
+        context,
+        'Voir toutes les transactions dans l\'onglet Transactions',
+        ToastType.info,
+      );
     }
   }
 
@@ -275,16 +355,31 @@ class HomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Budget Alimentation', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.isDark ? AppDark.fg : AppColors.fg)),
+            Text(
+              'Budget Alimentation',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: context.isDark ? AppDark.fg : AppColors.fg,
+              ),
+            ),
             const SizedBox(height: 12),
-            Text('${formatFCFA(s.budgetSpent)} dépensés', style: TextStyle(fontSize: 14, color: context.isDark ? AppDark.muted : AppColors.muted)),
+            Text(
+              '${formatFCFA(s.budgetSpent)} dépensés',
+              style: TextStyle(
+                fontSize: 14,
+                color: context.isDark ? AppDark.muted : AppColors.muted,
+              ),
+            ),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
                 value: s.budgetPct,
                 minHeight: 8,
-                backgroundColor: context.isDark ? AppDark.borderSoft : AppColors.borderSoft,
+                backgroundColor: context.isDark
+                    ? AppDark.borderSoft
+                    : AppColors.borderSoft,
                 valueColor: const AlwaysStoppedAnimation(AppColors.accent),
               ),
             ),
@@ -292,30 +387,62 @@ class HomeScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${(s.budgetPct * 100).round()}% utilisé', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                Text(formatFCFA(s.budget), style: TextStyle(fontSize: 13, color: context.isDark ? AppDark.muted : AppColors.muted)),
+                Text(
+                  '${(s.budgetPct * 100).round()}% utilisé',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  formatFCFA(s.budget),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.isDark ? AppDark.muted : AppColors.muted,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            _BudgetStat(label: 'Restant', value: formatFCFA(s.budgetRemaining), color: AppColors.accent),
-            _BudgetStat(label: 'Jours restants', value: '${s.daysLeftInMonth} jours'),
-            _BudgetStat(label: 'Moyenne journalière', value: '${formatFCFA(s.dailyAvg)} / jour'),
+            _BudgetStat(
+              label: 'Restant',
+              value: formatFCFA(s.budgetRemaining),
+              color: AppColors.accent,
+            ),
+            _BudgetStat(
+              label: 'Jours restants',
+              value: '${s.daysLeftInMonth} jours',
+            ),
+            _BudgetStat(
+              label: 'Moyenne journalière',
+              value: '${formatFCFA(s.dailyAvg)} / jour',
+            ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: context.isDark ? AppDark.accentSoft : AppColors.accentSoft,
+                color: context.isDark
+                    ? AppDark.accentSoft
+                    : AppColors.accentSoft,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.lightbulb_outline_rounded, size: 18, color: context.isDark ? AppDark.accent : AppColors.accent),
+                  Icon(
+                    Icons.lightbulb_outline_rounded,
+                    size: 18,
+                    color: context.isDark ? AppDark.accent : AppColors.accent,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Essayez de réduire vos sorties restaurant pour tenir votre budget jusqu\'à la fin du mois.',
-                      style: TextStyle(fontSize: 13, color: context.isDark ? AppDark.fg : AppColors.fg, height: 1.4),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: context.isDark ? AppDark.fg : AppColors.fg,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -324,7 +451,11 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: AppButton(label: 'Fermer', small: true, onPressed: () => Navigator.pop(context)),
+              child: AppButton(
+                label: 'Fermer',
+                small: true,
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
           ],
         ),
@@ -349,8 +480,14 @@ class _BudgetStat extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: TextStyle(fontSize: 14, color: muted)),
-          Text(value,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? fg)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: color ?? fg,
+            ),
+          ),
         ],
       ),
     );
@@ -367,19 +504,22 @@ class _DonutChart extends StatelessWidget {
     final muted = context.isDark ? AppDark.muted : AppColors.muted;
     final fg = context.isDark ? AppDark.fg : AppColors.fg;
     if (data.isEmpty) {
-      return const EmptyState(title: 'Aucune dépense', subtitle: 'Ajoutez des dépenses pour voir la répartition.');
+      return const EmptyState(
+        title: 'Aucune dépense',
+        subtitle: 'Ajoutez des dépenses pour voir la répartition.',
+      );
     }
     final legend = data.take(5).toList();
-    final restPct = data.length > 5 ? 100 - legend.fold(0, (sum, e) => sum + e.$2) : 0;
+    final restPct = data.length > 5
+        ? 100 - legend.fold(0, (sum, e) => sum + e.$2)
+        : 0;
 
     return Row(
       children: [
         SizedBox(
           width: 120,
           height: 120,
-          child: CustomPaint(
-            painter: _DonutPainter(data),
-          ),
+          child: CustomPaint(painter: _DonutPainter(data)),
         ),
         const SizedBox(width: 24),
         Expanded(
@@ -391,12 +531,25 @@ class _DonutChart extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Text(name, style: TextStyle(fontSize: 14, color: fg)),
                       const Spacer(),
-                      Text('$pct%',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
+                      Text(
+                        '$pct%',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -405,12 +558,25 @@ class _DonutChart extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.chartOther, shape: BoxShape.circle)),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: AppColors.chartOther,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Text('Autres', style: TextStyle(fontSize: 14, color: fg)),
                       const Spacer(),
-                      Text('$restPct%',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted)),
+                      Text(
+                        '$restPct%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: muted,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -454,7 +620,8 @@ class _DonutPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DonutPainter oldDelegate) => oldDelegate.data != data;
+  bool shouldRepaint(covariant _DonutPainter oldDelegate) =>
+      oldDelegate.data != data;
 }
 
 class _TxnRow extends StatelessWidget {
@@ -482,7 +649,10 @@ class _TxnRow extends StatelessWidget {
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: cat.bg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: cat.bg,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(cat.icon, size: 18, color: cat.fg),
             ),
             const SizedBox(width: 12),
@@ -490,10 +660,19 @@ class _TxnRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(txn.name,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: fg)),
+                  Text(
+                    txn.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
+                  ),
                   const SizedBox(height: 1),
-                  Text(formatDateHome(txn.date, now), style: TextStyle(fontSize: 12, color: muted)),
+                  Text(
+                    formatDateHome(txn.date, now),
+                    style: TextStyle(fontSize: 12, color: muted),
+                  ),
                 ],
               ),
             ),

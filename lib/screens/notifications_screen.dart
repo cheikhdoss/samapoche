@@ -30,8 +30,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           final filtered = _filter == 'Toutes'
               ? notifs
               : _filter == 'Non lues'
-                  ? notifs.where((n) => !n.read).toList()
-                  : notifs.where((n) => n.read).toList();
+              ? notifs.where((n) => !n.read).toList()
+              : notifs.where((n) => n.read).toList();
 
           final groups = <String, List<AppNotification>>{};
           for (final n in filtered) {
@@ -54,27 +54,44 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: isDark ? AppDark.surface : AppColors.surface,
+                              color: isDark
+                                  ? AppDark.surface
+                                  : AppColors.surface,
                               borderRadius: BorderRadius.circular(18),
                             ),
-                            child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+                            child: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 16,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
                           child: Text(
                             'Notifications',
-                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Inter',
+                            ),
                           ),
                         ),
                         GestureDetector(
                           onTap: () {
                             AppState.I.markAllRead();
-                            showToast(context, 'Toutes les notifications sont marquées comme lues', ToastType.success);
+                            showToast(
+                              context,
+                              'Toutes les notifications sont marquées comme lues',
+                              ToastType.success,
+                            );
                           },
                           child: Text(
                             'Tout marquer comme lu',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: accent),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: accent,
+                            ),
                           ),
                         ),
                       ],
@@ -85,7 +102,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         for (final f in ['Toutes', 'Non lues', 'Lues'])
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: AppChip(label: f, active: _filter == f, onTap: () => setState(() => _filter = f)),
+                            child: AppChip(
+                              label: f,
+                              active: _filter == f,
+                              onTap: () => setState(() => _filter = f),
+                            ),
                           ),
                       ],
                     ),
@@ -109,8 +130,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                         ),
                       ),
-                      for (final n in entry.value)
-                        _NotifItem(notification: n),
+                      for (final n in entry.value) _NotifItem(notification: n),
                     ],
                     if (groups.isEmpty)
                       const Padding(
@@ -160,7 +180,10 @@ class _NotifItem extends StatelessWidget {
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: notification.bg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: notification.bg,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(notification.icon, size: 18, color: notification.fg),
             ),
             const SizedBox(width: 12),
@@ -170,7 +193,11 @@ class _NotifItem extends StatelessWidget {
                 children: [
                   Text(
                     notification.title,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: fg),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -178,7 +205,10 @@ class _NotifItem extends StatelessWidget {
                     style: TextStyle(fontSize: 14, color: muted, height: 1.4),
                   ),
                   const SizedBox(height: 4),
-                  Text(notification.time, style: TextStyle(fontSize: 11, color: meta)),
+                  Text(
+                    notification.time,
+                    style: TextStyle(fontSize: 11, color: meta),
+                  ),
                 ],
               ),
             ),
@@ -188,7 +218,10 @@ class _NotifItem extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
           ],

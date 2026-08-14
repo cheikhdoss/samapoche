@@ -72,7 +72,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
                     const SizedBox(width: 8),
-                    const Text('Retour', style: TextStyle(fontSize: 14, fontFamily: 'Inter')),
+                    const Text(
+                      'Retour',
+                      style: TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                    ),
                   ],
                 ),
               ),
@@ -80,7 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 24),
             const Text(
               'Bienvenue',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Inter',
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -93,8 +100,15 @@ class _LoginScreenState extends State<LoginScreen> {
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 labelText: 'Email',
-                labelStyle: TextStyle(color: meta, fontSize: 14, fontWeight: FontWeight.w500),
-                floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w500),
+                labelStyle: TextStyle(
+                  color: meta,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                floatingLabelStyle: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w500,
+                ),
                 errorText: _emailError,
               ),
             ),
@@ -104,11 +118,24 @@ class _LoginScreenState extends State<LoginScreen> {
               obscureText: !_showPass,
               decoration: InputDecoration(
                 labelText: 'Mot de passe',
-                labelStyle: TextStyle(color: meta, fontSize: 14, fontWeight: FontWeight.w500),
-                floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w500),
+                labelStyle: TextStyle(
+                  color: meta,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                floatingLabelStyle: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w500,
+                ),
                 errorText: _passError,
                 suffixIcon: IconButton(
-                  icon: Icon(_showPass ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: meta),
+                  icon: Icon(
+                    _showPass
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    size: 20,
+                    color: meta,
+                  ),
                   onPressed: () => setState(() => _showPass = !_showPass),
                 ),
               ),
@@ -126,31 +153,56 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 20,
                         decoration: BoxDecoration(
                           color: _remember ? accent : Colors.transparent,
-                          border: Border.all(color: _remember ? accent : borderSoft, width: 2),
+                          border: Border.all(
+                            color: _remember ? accent : borderSoft,
+                            width: 2,
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: _remember ? const Icon(Icons.check, color: Colors.white, size: 12) : null,
+                        child: _remember
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 12,
+                              )
+                            : null,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'Se souvenir de moi',
-                        style: TextStyle(fontSize: 14, color: isDark ? AppDark.fg2 : AppColors.fg2),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? AppDark.fg2 : AppColors.fg2,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => showToast(context, 'Un email de réinitialisation sera envoyé à votre adresse', ToastType.info),
+                  onTap: () => showToast(
+                    context,
+                    'Un email de réinitialisation sera envoyé à votre adresse',
+                    ToastType.info,
+                  ),
                   child: Text(
                     'Mot de passe oublié ?',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: accent),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: accent,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            AppButton(label: 'Continuer', primary: true, loading: _loading, onPressed: _login),
+            AppButton(
+              label: 'Continuer',
+              primary: true,
+              loading: _loading,
+              onPressed: _login,
+            ),
             const SizedBox(height: 20),
             Center(
               child: Text(
@@ -165,7 +217,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 onTap: () => widget.go(RouteName.signup),
                 child: Text(
                   'Créer un compte',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accent),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                  ),
                 ),
               ),
             ),
@@ -175,7 +231,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 Expanded(child: Divider(color: borderSoft)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('Ou se connecter avec', style: TextStyle(fontSize: 12, color: meta)),
+                  child: Text(
+                    'Ou se connecter avec',
+                    style: TextStyle(fontSize: 12, color: meta),
+                  ),
                 ),
                 Expanded(child: Divider(color: borderSoft)),
               ],
@@ -184,15 +243,27 @@ class _LoginScreenState extends State<LoginScreen> {
             AppButton(
               label: 'Apple',
               ghost: true,
-              onPressed: () => showToast(context, 'Connexion Apple bientôt disponible', ToastType.info),
+              onPressed: () => showToast(
+                context,
+                'Connexion Apple bientôt disponible',
+                ToastType.info,
+              ),
               icon: const Icon(Icons.apple_rounded, size: 18),
             ),
             const SizedBox(height: 8),
             AppButton(
               label: 'Google',
               ghost: true,
-              onPressed: () => showToast(context, 'Connexion Google bientôt disponible', ToastType.info),
-              icon: const Icon(Icons.g_mobiledata_rounded, size: 24, color: Color(0xFF4285F4)),
+              onPressed: () => showToast(
+                context,
+                'Connexion Google bientôt disponible',
+                ToastType.info,
+              ),
+              icon: const Icon(
+                Icons.g_mobiledata_rounded,
+                size: 24,
+                color: Color(0xFF4285F4),
+              ),
             ),
           ],
         ),

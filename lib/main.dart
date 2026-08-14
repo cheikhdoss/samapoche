@@ -60,7 +60,10 @@ class _BootState extends State<_Boot> {
         child: SizedBox(
           width: 20,
           height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.accent),
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: AppColors.accent,
+          ),
         ),
       ),
     );

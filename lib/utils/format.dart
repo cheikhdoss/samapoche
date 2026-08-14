@@ -1,5 +1,31 @@
-const _mois = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
-const _moisLong = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+const _mois = [
+  'Janv',
+  'Févr',
+  'Mars',
+  'Avr',
+  'Mai',
+  'Juin',
+  'Juil',
+  'Août',
+  'Sept',
+  'Oct',
+  'Nov',
+  'Déc',
+];
+const _moisLong = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];
 const _jours = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
 String formatMontant(int v) {
@@ -16,7 +42,8 @@ String formatMontant(int v) {
 String formatF(int v) => '${formatMontant(v)} F';
 String formatFCFA(int v) => '${formatMontant(v)} F CFA';
 
-String formatDateListe(DateTime d) => '${d.day} ${_mois[d.month - 1]} ${d.year}';
+String formatDateListe(DateTime d) =>
+    '${d.day} ${_mois[d.month - 1]} ${d.year}';
 String formatDateDetail(DateTime d) =>
     '${d.day} ${_mois[d.month - 1]} ${d.year}, ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
@@ -29,7 +56,8 @@ String formatDateHome(DateTime d, DateTime now) {
   return '${_jours[d.weekday - 1]} ${d.day} ${_mois[d.month - 1]}, ${hhmm(d)}';
 }
 
-String hhmm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+String hhmm(DateTime d) =>
+    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 String moisAnnee(DateTime d) => '${_moisLong[d.month - 1]} ${d.year}';
 

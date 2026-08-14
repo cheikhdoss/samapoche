@@ -93,33 +93,99 @@ class AppTheme {
         surface: bg,
       ),
       textTheme: TextTheme(
-        displayLarge: TextStyle(fontSize: 48, fontWeight: FontWeight.w800, color: fg, letterSpacing: -0.03),
-        displayMedium: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: fg, letterSpacing: -0.03),
-        headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: fg, letterSpacing: -0.02),
-        headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: fg),
-        headlineSmall: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: fg),
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: fg),
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: fg),
-        bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: fg, height: 1.5),
-        bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: fg2, height: 1.4),
-        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: muted, height: 1.4),
-        labelLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: fg),
-        labelMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: fg2),
-        labelSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: muted),
+        displayLarge: TextStyle(
+          fontSize: 48,
+          fontWeight: FontWeight.w800,
+          color: fg,
+          letterSpacing: -0.03,
+        ),
+        displayMedium: TextStyle(
+          fontSize: 36,
+          fontWeight: FontWeight.w800,
+          color: fg,
+          letterSpacing: -0.03,
+        ),
+        headlineLarge: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w800,
+          color: fg,
+          letterSpacing: -0.02,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: fg,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: fg,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: fg,
+          height: 1.5,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: fg2,
+          height: 1.4,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: muted,
+          height: 1.4,
+        ),
+        labelLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: fg,
+        ),
+        labelMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: fg2,
+        ),
+        labelSmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: muted,
+        ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
         foregroundColor: fg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: TextStyle(fontFamily: font, fontSize: 22, fontWeight: FontWeight.w700, color: fg),
+        titleTextStyle: TextStyle(
+          fontFamily: font,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
         centerTitle: true,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
         hintStyle: TextStyle(color: meta, fontSize: 16),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: border, width: 1.5),
@@ -160,8 +226,11 @@ class AppTheme {
         trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
       ),
       checkboxTheme: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? accent : Colors.transparent),
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? accent
+              : Colors.transparent,
+        ),
         side: BorderSide(color: border, width: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),

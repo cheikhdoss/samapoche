@@ -47,7 +47,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   children: [
                     const Text(
                       'Transactions',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Inter',
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -57,10 +61,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             onChanged: (v) => setState(() => _query = v),
                             decoration: InputDecoration(
                               hintText: 'Rechercher une transaction…',
-                              hintStyle: TextStyle(fontSize: 16, color: context.isDark ? AppDark.meta : AppColors.meta),
-                              prefixIcon: Icon(Icons.search_rounded,
-                                  size: 20, color: context.isDark ? AppDark.meta : AppColors.meta),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              hintStyle: TextStyle(
+                                fontSize: 16,
+                                color: context.isDark
+                                    ? AppDark.meta
+                                    : AppColors.meta,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                size: 20,
+                                color: context.isDark
+                                    ? AppDark.meta
+                                    : AppColors.meta,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ),
@@ -71,12 +88,24 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: context.isDark ? AppDark.surface : AppColors.surface,
+                              color: context.isDark
+                                  ? AppDark.surface
+                                  : AppColors.surface,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: context.isDark ? AppDark.border : AppColors.border, width: 1.5),
+                              border: Border.all(
+                                color: context.isDark
+                                    ? AppDark.border
+                                    : AppColors.border,
+                                width: 1.5,
+                              ),
                             ),
-                            child: Icon(Icons.tune_rounded,
-                                size: 20, color: context.isDark ? AppDark.fg2 : AppColors.fg2),
+                            child: Icon(
+                              Icons.tune_rounded,
+                              size: 20,
+                              color: context.isDark
+                                  ? AppDark.fg2
+                                  : AppColors.fg2,
+                            ),
                           ),
                         ),
                       ],
@@ -87,7 +116,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
-                          for (final p in ['Tous', 'Ce mois', '3 derniers mois', '2026', 'Personnalisé'])
+                          for (final p in [
+                            'Tous',
+                            'Ce mois',
+                            '3 derniers mois',
+                            '2026',
+                            'Personnalisé',
+                          ])
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: AppChip(
@@ -109,21 +144,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 child: filtered.isEmpty
                     ? const EmptyState(
                         title: 'Aucune transaction',
-                        subtitle: 'Essayez de modifier vos filtres ou d\'ajouter une nouvelle transaction.',
+                        subtitle:
+                            'Essayez de modifier vos filtres ou d\'ajouter une nouvelle transaction.',
                       )
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                         children: [
                           for (final entry in groups.entries) ...[
                             Padding(
-                              padding: const EdgeInsets.only(top: 12, bottom: 4),
+                              padding: const EdgeInsets.only(
+                                top: 12,
+                                bottom: 4,
+                              ),
                               child: Text(
                                 entry.key.toUpperCase(),
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 0.5,
-                                  color: context.isDark ? AppDark.muted : AppColors.muted,
+                                  color: context.isDark
+                                      ? AppDark.muted
+                                      : AppColors.muted,
                                 ),
                               ),
                             ),
@@ -152,7 +193,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
     switch (_period) {
       case 'Ce mois':
-        list = list.where((t) => t.date.year == now.year && t.date.month == now.month).toList();
+        list = list
+            .where((t) => t.date.year == now.year && t.date.month == now.month)
+            .toList();
         break;
       case '3 derniers mois':
         final from = DateTime(now.year, now.month - 2, 1);
@@ -170,7 +213,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         list = list.where((t) => t.amount < 5000).toList();
         break;
       case '5 000 - 20 000 F':
-        list = list.where((t) => t.amount >= 5000 && t.amount <= 20000).toList();
+        list = list
+            .where((t) => t.amount >= 5000 && t.amount <= 20000)
+            .toList();
         break;
       case 'Plus de 20 000 F':
         list = list.where((t) => t.amount > 20000).toList();
@@ -192,7 +237,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       context,
       StatefulBuilder(
         builder: (context, setModal) {
-          Widget section(String title, List<String> options, String current, ValueChanged<String> onSelect) {
+          Widget section(
+            String title,
+            List<String> options,
+            String current,
+            ValueChanged<String> onSelect,
+          ) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -202,7 +252,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   runSpacing: 8,
                   children: [
                     for (final o in options)
-                      AppChip(label: o, active: current == o, onTap: () => onSelect(o)),
+                      AppChip(
+                        label: o,
+                        active: current == o,
+                        onTap: () => onSelect(o),
+                      ),
                   ],
                 ),
               ],
@@ -213,17 +267,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              section('Par catégorie', ['Toutes', ...Categories.all.map((c) => c.name)], _catFilter, (v) {
-                setModal(() => _catFilter = v);
-              }),
+              section(
+                'Par catégorie',
+                ['Toutes', ...Categories.all.map((c) => c.name)],
+                _catFilter,
+                (v) {
+                  setModal(() => _catFilter = v);
+                },
+              ),
               const SizedBox(height: 12),
-              section('Par montant', ['Tous', 'Moins de 5 000 F', '5 000 - 20 000 F', 'Plus de 20 000 F'], _amountFilter, (v) {
-                setModal(() => _amountFilter = v);
-              }),
+              section(
+                'Par montant',
+                [
+                  'Tous',
+                  'Moins de 5 000 F',
+                  '5 000 - 20 000 F',
+                  'Plus de 20 000 F',
+                ],
+                _amountFilter,
+                (v) {
+                  setModal(() => _amountFilter = v);
+                },
+              ),
               const SizedBox(height: 12),
-              section('Par type', ['Tous', 'Dépenses', 'Revenus'], _typeFilter, (v) {
-                setModal(() => _typeFilter = v);
-              }),
+              section(
+                'Par type',
+                ['Tous', 'Dépenses', 'Revenus'],
+                _typeFilter,
+                (v) {
+                  setModal(() => _typeFilter = v);
+                },
+              ),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -276,11 +350,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Container(
             width: 56,
             height: 56,
-            decoration: BoxDecoration(color: cat.bg, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+              color: cat.bg,
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Icon(cat.icon, size: 26, color: cat.fg),
           ),
           const SizedBox(height: 12),
-          Text(t.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
+          Text(
+            t.name,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Inter',
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             montantSigne(t.signed),
@@ -288,17 +372,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               fontSize: 36,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.03,
-              color: t.type == TxnType.income ? (isDark ? AppDark.accent : AppColors.accent) : (isDark ? AppDark.fg : AppColors.fg),
+              color: t.type == TxnType.income
+                  ? (isDark ? AppDark.accent : AppColors.accent)
+                  : (isDark ? AppDark.fg : AppColors.fg),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             formatDateDetail(t.date),
-            style: TextStyle(fontSize: 14, color: isDark ? AppDark.muted : AppColors.muted),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? AppDark.muted : AppColors.muted,
+            ),
           ),
           const SizedBox(height: 20),
           _DetailRow(label: 'Catégorie', value: t.category),
-          _DetailRow(label: 'Type', value: t.type == TxnType.expense ? 'Dépense' : 'Revenu'),
+          _DetailRow(
+            label: 'Type',
+            value: t.type == TxnType.expense ? 'Dépense' : 'Revenu',
+          ),
           _DetailRow(label: 'Description', value: t.description),
           _DetailRow(label: 'Paiement', value: t.payment),
           const SizedBox(height: 20),
@@ -362,7 +454,11 @@ class _DetailRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: fg),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: fg,
+            ),
             textAlign: TextAlign.right,
           ),
         ],
@@ -387,13 +483,18 @@ class _TxnListItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: borderSoft, width: 0.5))),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: borderSoft, width: 0.5)),
+        ),
         child: Row(
           children: [
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: cat.bg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: cat.bg,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(cat.icon, size: 18, color: cat.fg),
             ),
             const SizedBox(width: 12),
@@ -401,9 +502,19 @@ class _TxnListItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(txn.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: fg)),
+                  Text(
+                    txn.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
+                  ),
                   const SizedBox(height: 1),
-                  Text(formatDateListe(txn.date), style: TextStyle(fontSize: 12, color: muted)),
+                  Text(
+                    formatDateListe(txn.date),
+                    style: TextStyle(fontSize: 12, color: muted),
+                  ),
                 ],
               ),
             ),
@@ -412,7 +523,9 @@ class _TxnListItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: txn.type == TxnType.income ? (isDark ? AppDark.accent : AppColors.accent) : fg,
+                color: txn.type == TxnType.income
+                    ? (isDark ? AppDark.accent : AppColors.accent)
+                    : fg,
               ),
             ),
           ],
