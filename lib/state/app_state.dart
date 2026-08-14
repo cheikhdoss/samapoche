@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
-import '../theme.dart';
+import '../services/api_client.dart';
 import '../utils/format.dart';
 
 class AppState extends ChangeNotifier {
@@ -30,34 +29,17 @@ class AppState extends ChangeNotifier {
   List<AppNotification> notifications = [];
   final List<ChatMessage> chat = [];
 
+  Map<String, int> _categoryIds = {};
+  int? _alimentationBudgetId;
+
+  Map<int, String> get _categoryNames => {
+    for (final e in _categoryIds.entries) e.value: e.key,
+  };
+
   bool get loaded => _loaded;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    // Profil
-    final u = _prefs!.getString('samapoche_user');
-    if (u != null) {
-      try {
-        user = UserProfile.fromJson(jsonDecode(u) as Map<String, dynamic>);
-      } catch (_) {
-        _prefs!.remove('samapoche_user');
-      }
-    }
-    // Transactions
-    final t = _prefs!.getString('samapoche_txns');
-    if (t != null) {
-      try {
-        transactions = (jsonDecode(t) as List)
-            .map((e) => Txn.fromJson(e as Map<String, dynamic>))
-            .toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
-      } catch (_) {
-        transactions = seedTransactions();
-      }
-    } else {
-      transactions = seedTransactions();
-      await _saveTxns();
-    }
     darkMode = _prefs!.getBool('samapoche_dark') ?? false;
     budget = _prefs!.getInt('samapoche_budget') ?? 150000;
     savingsGoal = _prefs!.getInt('samapoche_goal') ?? 300000;
@@ -67,44 +49,179 @@ class AppState extends ChangeNotifier {
     ecoData = _prefs!.getBool('samapoche_eco') ?? false;
     budgetAuto = _prefs!.getBool('samapoche_budget_auto') ?? true;
 
-    _buildNotifications();
-    _seedChat();
+    final savedToken = _prefs!.getString('samapoche_token');
+    if (savedToken != null && savedToken.isNotEmpty) {
+      Api.I.token = savedToken;
+      await _restoreFromServer();
+    }
+
     _loaded = true;
     notifyListeners();
   }
 
+  // ─── Sync serveur ────────────────────────────────────────
+  bool _syncing = false;
+  bool get syncing => _syncing;
+
+  Future<void> refresh() => _restoreFromServer();
+
+  Future<void> _restoreFromServer() async {
+    if (_syncing) return;
+    _syncing = true;
+    try {
+      final me = await Api.I.me();
+      user = UserProfile.fromServer(me);
+      await _prefs!.setString('samapoche_user', jsonEncode(user!.toJson()));
+      _loadCategories();
+      await _syncTransactions();
+      await _syncBudgets();
+      await _syncNotifications();
+      notifyListeners();
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        await logout(silent: true);
+      } else {
+        _loadFallbackCache();
+        notifyListeners();
+      }
+    } finally {
+      _syncing = false;
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final list = await Api.I.categories();
+      _categoryIds = {
+        for (final c in list) (c['name'] as String): (c['id'] as num).toInt(),
+      };
+      await _prefs!.setString('samapoche_categories', jsonEncode(list));
+    } on ApiException {
+      final cached = _prefs!.getString('samapoche_categories');
+      if (cached != null) {
+        final list = jsonDecode(cached) as List;
+        _categoryIds = {
+          for (final c in list) (c['name'] as String): (c['id'] as num).toInt(),
+        };
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> _syncTransactions() async {
+    final list = await Api.I.transactions();
+    transactions = [
+      for (final e in list)
+        Txn.fromServer(
+          e as Map<String, dynamic>,
+          categoryNames: _categoryNames,
+        ),
+    ]..sort((a, b) => b.date.compareTo(a.date));
+    await _prefs!.setString(
+      'samapoche_txns',
+      jsonEncode(transactions.map((t) => t.toJson()).toList()),
+    );
+    notifyListeners();
+  }
+
+  Future<void> _syncBudgets() async {
+    final list = await Api.I.budgets();
+    final now = DateTime.now();
+    final current = list.where(
+      (b) =>
+          (b['month'] as num).toInt() == now.month &&
+          (b['year'] as num).toInt() == now.year,
+    );
+    final alimentation = current.isNotEmpty
+        ? current
+        : list.where((b) => (b['category_name'] as String) == 'Alimentation');
+    if (alimentation.isNotEmpty) {
+      final b = alimentation.first as Map<String, dynamic>;
+      _alimentationBudgetId = (b['id'] as num).toInt();
+      budget = (b['amount'] as num).round();
+      await _prefs!.setInt('samapoche_budget', budget);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _syncNotifications() async {
+    final list = await Api.I.notifications();
+    final now = DateTime.now();
+    notifications = [
+      for (final n in list)
+        AppNotification.fromServer(
+          n as Map<String, dynamic>,
+          time: _notifTime(
+            DateTime.parse(n['created_at'] as String).toLocal(),
+            now,
+          ),
+          group: _notifGroup(
+            DateTime.parse(n['created_at'] as String).toLocal(),
+            now,
+          ),
+        ),
+    ];
+    notifyListeners();
+  }
+
+  void _loadFallbackCache() {
+    final t = _prefs!.getString('samapoche_txns');
+    if (t != null) {
+      try {
+        transactions =
+            (jsonDecode(t) as List)
+                .map((e) => Txn.fromJson(e as Map<String, dynamic>))
+                .toList()
+              ..sort((a, b) => b.date.compareTo(a.date));
+      } catch (_) {}
+    }
+    final u = _prefs!.getString('samapoche_user');
+    if (u != null) {
+      try {
+        user = UserProfile.fromJson(jsonDecode(u) as Map<String, dynamic>);
+      } catch (_) {}
+    }
+  }
+
   // ─── Auth ────────────────────────────────────────────────
   Future<String?> signup(UserProfile p, String password) async {
-    final existing = _prefs!.getString('samapoche_user');
-    if (existing != null) {
-      final e = UserProfile.fromJson(jsonDecode(existing) as Map<String, dynamic>);
-      if (e.email == p.email) return 'Un compte existe déjà avec cet email.';
+    try {
+      await Api.I.register(
+        email: p.email,
+        password: password,
+        fullName: p.fullName,
+      );
+      await _prefs!.setString('samapoche_token', Api.I.token!);
+      await _restoreFromServer();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
     }
-    user = p;
-    await _prefs!.setString('samapoche_user', jsonEncode(p.toJson()));
-    await _prefs!.setString('samapoche_pass', _hash(password));
-    notifyListeners();
-    return null;
   }
 
   Future<String?> login(String email, String password) async {
-    final existing = _prefs!.getString('samapoche_user');
-    if (existing == null) return 'Aucun compte trouvé. Créez-en un d\'abord.';
-    final e = UserProfile.fromJson(jsonDecode(existing) as Map<String, dynamic>);
-    if (e.email != email) return 'Email incorrect';
-    final saved = _prefs!.getString('samapoche_pass');
-    if (saved == null || saved != _hash(password)) return 'Mot de passe incorrect';
-    user = e;
-    notifyListeners();
-    return null;
+    try {
+      await Api.I.login(email: email, password: password);
+      await _prefs!.setString('samapoche_token', Api.I.token!);
+      await _restoreFromServer();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
   }
 
-  Future<void> logout() async {
+  Future<void> logout({bool silent = false}) async {
     user = null;
-    await _prefs!.remove('samapoche_user');
+    transactions = [];
+    notifications = [];
     chat.clear();
-    _seedChat();
-    notifyListeners();
+    Api.I.token = null;
+    _alimentationBudgetId = null;
+    if (_prefs != null) {
+      await _prefs!.remove('samapoche_token');
+      await _prefs!.remove('samapoche_user');
+    }
+    if (!silent) notifyListeners();
   }
 
   Future<void> saveProfile(UserProfile p) async {
@@ -113,24 +230,56 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _hash(String s) => sha256.convert(utf8.encode(s)).toString();
-
   // ─── Transactions ────────────────────────────────────────
-  Future<void> addTxn(Txn t) async {
-    transactions.insert(0, t);
-    await _saveTxns();
-    notifyListeners();
+  Future<String?> addTxn(Txn t) async {
+    final catId = _categoryIds[t.category];
+    if (catId == null) return 'Catégorie inconnue du serveur.';
+    try {
+      final created = await Api.I.createTransaction(
+        amount: t.amount.toDouble(),
+        type: t.type.name,
+        categoryId: catId,
+        description: t.description.isNotEmpty ? t.description : null,
+        date: t.date,
+      );
+      transactions.insert(
+        0,
+        Txn.fromServer(created, categoryNames: _categoryNames),
+      );
+      await _prefs!.setString(
+        'samapoche_txns',
+        jsonEncode(transactions.map((x) => x.toJson()).toList()),
+      );
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
   }
 
-  Future<void> updateTxn(Txn t) async {
-    final i = transactions.indexWhere((x) => x.id == t.id);
-    if (i >= 0) transactions[i] = t;
-    await _saveTxns();
-    notifyListeners();
-  }
-
-  Future<void> _saveTxns() async {
-    await _prefs!.setString('samapoche_txns', jsonEncode(transactions.map((t) => t.toJson()).toList()));
+  Future<String?> updateTxn(Txn t) async {
+    final id = int.tryParse(t.id);
+    if (id == null) return 'Transaction introuvable.';
+    final catId = _categoryIds[t.category];
+    if (catId == null) return 'Catégorie inconnue du serveur.';
+    try {
+      await Api.I.updateTransaction(
+        id,
+        amount: t.amount.toDouble(),
+        categoryId: catId,
+        description: t.description.isNotEmpty ? t.description : null,
+      );
+      final i = transactions.indexWhere((x) => x.id == t.id);
+      if (i >= 0) transactions[i] = t;
+      await _prefs!.setString(
+        'samapoche_txns',
+        jsonEncode(transactions.map((x) => x.toJson()).toList()),
+      );
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
   }
 
   // ─── Dashboard computed ──────────────────────────────────
@@ -143,16 +292,27 @@ class AppState extends ChangeNotifier {
         .toList();
   }
 
-  int get monthIncome => monthTxns.where((t) => t.type == TxnType.income).fold(0, (s, t) => s + t.amount);
+  int get monthIncome => monthTxns
+      .where((t) => t.type == TxnType.income)
+      .fold(0, (s, t) => s + t.amount);
 
-  int get monthExpense => monthTxns.where((t) => t.type == TxnType.expense).fold(0, (s, t) => s + t.amount);
+  int get monthExpense => monthTxns
+      .where((t) => t.type == TxnType.expense)
+      .fold(0, (s, t) => s + t.amount);
 
-  int get budgetSpent =>
-      transactions.where((t) => t.category == 'Alimentation' && t.type == TxnType.expense && _sameMonth(t.date)).fold(0, (s, t) => s + t.amount);
+  int get budgetSpent => transactions
+      .where(
+        (t) =>
+            t.category == 'Alimentation' &&
+            t.type == TxnType.expense &&
+            _sameMonth(t.date),
+      )
+      .fold(0, (s, t) => s + t.amount);
 
   int get budgetRemaining => budget - budgetSpent;
 
-  double get budgetPct => budget == 0 ? 0 : (budgetSpent / budget).clamp(0, 1.0);
+  double get budgetPct =>
+      budget == 0 ? 0 : (budgetSpent / budget).clamp(0, 1.0);
 
   int get daysLeftInMonth {
     final now = DateTime.now();
@@ -160,7 +320,8 @@ class AppState extends ChangeNotifier {
     return last - now.day;
   }
 
-  int get dailyAvg => daysLeftInMonth == 0 ? 0 : (budgetRemaining / daysLeftInMonth).round();
+  int get dailyAvg =>
+      daysLeftInMonth == 0 ? 0 : (budgetRemaining / daysLeftInMonth).round();
 
   bool _sameMonth(DateTime d) {
     final now = DateTime.now();
@@ -169,7 +330,9 @@ class AppState extends ChangeNotifier {
 
   List<(String, int, Color)> get donutData {
     final byCat = <String, int>{};
-    for (final t in transactions.where((t) => t.type == TxnType.expense && _sameMonth(t.date))) {
+    for (final t in transactions.where(
+      (t) => t.type == TxnType.expense && _sameMonth(t.date),
+    )) {
       byCat[t.category] = (byCat[t.category] ?? 0) + t.amount;
     }
     if (byCat.isEmpty) return [];
@@ -177,147 +340,86 @@ class AppState extends ChangeNotifier {
     final list = byCat.entries.map((e) {
       final c = Categories.byName(e.key);
       return (e.key, (e.value / total * 100).round(), c.fg);
-    }).toList()
-      ..sort((a, b) => b.$2.compareTo(a.$2));
+    }).toList()..sort((a, b) => b.$2.compareTo(a.$2));
     return list;
   }
 
   // ─── Notifications ──────────────────────────────────────
-  void _buildNotifications() {
-    notifications = [
-      AppNotification(
-        title: 'Budget alimentation presque atteint',
-        desc: 'Vous avez utilisé 82% de votre budget alimentation. Il reste 18 700 F CFA.',
-        time: '14:30',
-        group: "Aujourd'hui",
-        bg: AppColors.warnSoft,
-        fg: const Color(0xFFD97706),
-        icon: Icons.warning_amber_rounded,
-        read: false,
-      ),
-      AppNotification(
-        title: "Objectif d'épargne atteint à 60%",
-        desc: 'Vous avez épargné 180 000 F CFA sur votre objectif de 300 000 F CFA. Continuez !',
-        time: '10:15',
-        group: "Aujourd'hui",
-        bg: AppColors.accentSoft,
-        fg: AppColors.accent,
-        icon: Icons.trending_up_rounded,
-        read: false,
-      ),
-      AppNotification(
-        title: 'Rappel : Facture Senelec',
-        desc: 'Votre facture d\'électricité de 32 000 F CFA arrive à échéance le 25 juillet.',
-        time: 'Lun 21 Juil',
-        group: 'Cette semaine',
-        bg: AppColors.infoSoft,
-        fg: const Color(0xFF2563EB),
-        icon: Icons.event_rounded,
-        read: true,
-      ),
-      AppNotification(
-        title: 'Dépense inhabituelle détectée',
-        desc: 'Votre dépense chez Jumia (15 900 F CFA) est 40% plus élevée que votre moyenne mensuelle.',
-        time: 'Ven 11 Juil',
-        group: 'Cette semaine',
-        bg: AppColors.dangerSoft,
-        fg: AppColors.danger,
-        icon: Icons.error_outline_rounded,
-        read: true,
-      ),
-      AppNotification(
-        title: 'Insight IA : Vous gérez mieux votre budget',
-        desc: 'Félicitations ! Vous avez réduit vos dépenses de 8% par rapport au mois dernier. Analyse détaillée disponible.',
-        time: 'Mer 2 Juil',
-        group: 'Juillet 2026',
-        bg: AppColors.accentSoft,
-        fg: AppColors.accent,
-        icon: Icons.auto_awesome_rounded,
-        read: true,
-      ),
-    ];
-  }
-
-  void markAllRead() {
+  Future<void> markAllRead() async {
     for (final n in notifications) {
       n.read = true;
     }
     notifyListeners();
+    try {
+      await Api.I.markAllNotificationsRead();
+    } on ApiException catch (_) {}
   }
 
-  void markRead(AppNotification n) {
+  Future<void> markRead(AppNotification n) async {
     n.read = true;
     notifyListeners();
+    if (n.id != null) {
+      try {
+        await Api.I.markNotificationRead(n.id!);
+      } on ApiException catch (_) {}
+    }
   }
 
   // ─── Chat ────────────────────────────────────────────────
-  void _seedChat() {
-    final now = DateTime.now();
-    final n1 = DateTime(now.year, now.month, now.day, 9, 41);
-    final n2 = DateTime(now.year, now.month, now.day, 9, 42);
-    final n3 = DateTime(now.year, now.month, now.day, 9, 43);
-    chat.addAll([
-      ChatMessage(
-        text: 'Bonjour ${user?.firstName ?? ''} ! Je suis votre assistant financier. Comment puis-je vous aider aujourd\'hui ?',
-        fromUser: false,
-        time: n1,
-      ),
-      ChatMessage(text: 'Quel est mon budget alimentation ce mois-ci ?', fromUser: true, time: n2),
-      ChatMessage(
-        text: 'Votre budget Alimentation pour juillet est de 150 000 F CFA. Vous avez déjà dépensé 82 300 F CFA (55%). Il vous reste 67 700 F CFA pour les 9 prochains jours. Voulez-vous ajuster ce budget ?',
-        fromUser: false,
-        time: n2,
-      ),
-      ChatMessage(text: 'Des conseils pour économiser ?', fromUser: true, time: n3),
-      ChatMessage(
-        text: 'Voici 3 conseils personnalisés pour vous :\n\n1. Réduisez vos sorties restaurant de 20% ce mois-ci\n2. Privilégiez les achats en gros à Auchan\n3. Activez l\'arrondi automatique sur chaque transaction',
-        fromUser: false,
-        time: n3,
-      ),
-    ]);
+  Future<String> chatReply(String message) async {
+    try {
+      return await Api.I.chat(message);
+    } on ApiException catch (e) {
+      return 'Je n\'ai pas pu répondre pour le moment. ${e.message}';
+    }
   }
 
   void clearChat() {
     chat.clear();
-    chat.add(ChatMessage(
-      text: 'Conversation effacée. Je suis là pour vous aider !',
-      fromUser: false,
-      time: DateTime.now(),
-    ));
+    chat.add(
+      ChatMessage(
+        text: 'Conversation effacée. Je suis là pour vous aider !',
+        fromUser: false,
+        time: DateTime.now(),
+      ),
+    );
     notifyListeners();
   }
 
-  String aiReply(String q) {
-    final ql = q.toLowerCase();
-    if (ql.contains('budget') || ql.contains('alimentation')) {
-      return 'Votre budget Alimentation pour juillet est de ${formatFCFA(budget)}. Vous avez déjà dépensé ${formatFCFA(budgetSpent)} (${(budgetPct * 100).round()}%). Il vous reste ${formatFCFA(budgetRemaining)} pour les $daysLeftInMonth prochains jours.';
+  // ─── Budget ──────────────────────────────────────────────
+  Future<String?> setBudget(int v) async {
+    final prev = budget;
+    budget = v;
+    await _prefs!.setInt('samapoche_budget', v);
+    notifyListeners();
+    final catId = _categoryIds['Alimentation'] ?? _categoryIds['Autres'];
+    if (catId == null) return null;
+    final now = DateTime.now();
+    try {
+      if (_alimentationBudgetId != null) {
+        await Api.I.updateBudget(_alimentationBudgetId!, amount: v.toDouble());
+      } else {
+        final created = await Api.I.createBudget(
+          categoryId: catId,
+          amount: v.toDouble(),
+          month: now.month,
+          year: now.year,
+        );
+        _alimentationBudgetId = (created['id'] as num).toInt();
+      }
+      return null;
+    } on ApiException catch (e) {
+      budget = prev;
+      await _prefs!.setInt('samapoche_budget', prev);
+      notifyListeners();
+      return e.message;
     }
-    if (ql.contains('dépense') || ql.contains('depense') || ql.contains('catégorie') || ql.contains('categorie')) {
-      final parts = donutData.map((d) => '• ${d.$1} : ${formatFCFA(d.$2 == 0 ? 0 : (monthExpense * d.$2 / 100).round())}').join('\n');
-      return 'Voici le résumé de vos dépenses pour ${moisAnnee(DateTime.now())} :\n$parts\n— Total : ${formatFCFA(monthExpense)}';
-    }
-    if (ql.contains('épargne') || ql.contains('epargne') || ql.contains('économi') || ql.contains('economi')) {
-      return 'Pour atteindre votre objectif d\'épargne de ${formatFCFA(savingsGoal)} :\n1. Réduisez vos dépenses alimentation de 15% (~12 000 F/mois)\n2. Limitez les courses Yango aux jours de pluie\n3. Activez l\'arrondi automatique sur chaque transaction\n\nVous pourriez économiser 45 000 F CFA supplémentaires ce mois-ci !';
-    }
-    if (ql.contains('conseil') || ql.contains('astuce') || ql.contains('mieu')) {
-      return 'Voici 3 conseils personnalisés :\n1. Réduisez vos sorties restaurant de 20% ce mois-ci\n2. Privilégiez les achats en gros à Auchan\n3. Activez les notifications de dépassement de budget';
-    }
-    if (ql.contains('salaire') || ql.contains('revenu')) {
-      return 'Votre salaire de 450 000 F CFA a été crédité le 14 Juillet. Depuis le début du mois, vous avez dépensé ${formatFCFA(monthExpense)}, soit un taux d\'épargne de ${monthIncome == 0 ? 0 : (100 - monthExpense / monthIncome * 100).round()}%. Excellent travail !';
-    }
-    return 'Je suis votre assistant financier SamaPoche. Je peux vous aider à :\n• Consulter votre budget mensuel\n• Analyser vos dépenses par catégorie\n• Fixer des objectifs d\'épargne\n• Obtenir des conseils personnalisés\n\nQue souhaitez-vous savoir ?';
   }
 
   // ─── Settings ────────────────────────────────────────────
   Future<void> setDarkMode(bool v) async {
     darkMode = v;
     await _prefs!.setBool('samapoche_dark', v);
-    notifyListeners();
-  }
-
-  Future<void> setBudget(int v) async {
-    budget = v;
-    await _prefs!.setInt('samapoche_budget', v);
     notifyListeners();
   }
 
@@ -353,21 +455,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<Txn> seedTransactions() {
-    final now = DateTime.now();
-    final juli = DateTime(now.year, now.month, now.day);
-    DateTime dt(int day, int h, int m) {
-      return DateTime(juli.year, juli.month.clamp(1, 12), day.clamp(1, DateTime(juli.year, juli.month.clamp(1, 12) + 1, 0).day), h, m);
+  String _notifTime(DateTime dt, DateTime now) {
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
+    return formatDateListe(dt);
+  }
 
-    return [
-      Txn(id: 'auchan', name: 'Auchan Dakar', category: 'Alimentation', type: TxnType.expense, amount: 28500, description: 'Courses alimentaires', payment: 'Carte Visa ••8842', date: dt(22, 14, 30)),
-      Txn(id: 'yango', name: 'Yango Course', category: 'Transport', type: TxnType.expense, amount: 5200, description: 'Course Ouakam → Médina', payment: 'Orange Money', date: dt(21, 8, 15)),
-      Txn(id: 'salaire', name: 'Salaire Juillet', category: 'Salaire', type: TxnType.income, amount: 450000, description: 'Salaire mensuel Juillet 2026', payment: 'Virement bancaire', date: dt(14, 9, 0)),
-      Txn(id: 'jumia', name: 'Jumia Sénégal', category: 'Shopping', type: TxnType.expense, amount: 15900, description: 'Electroménager & accessoires', payment: 'Carte Visa ••8842', date: dt(11, 16, 45)),
-      Txn(id: 'senelec', name: 'Facture Senelec', category: 'Factures', type: TxnType.expense, amount: 32000, description: 'Électricité Juillet 2026', payment: 'Prélèvement automatique', date: dt(9, 11, 0)),
-      Txn(id: 'canal', name: 'Canal+ Abonnement', category: 'Loisirs', type: TxnType.expense, amount: 12000, description: 'Abonnement mensuel Canal+', payment: 'Carte Visa ••8842', date: dt(5, 10, 0)),
-      Txn(id: 'pharmacie', name: 'Pharmacie Ouakam', category: 'Santé', type: TxnType.expense, amount: 8500, description: 'Médicaments prescription', payment: 'Carte Visa ••8842', date: dt(3, 18, 30)),
-    ]..sort((a, b) => b.date.compareTo(a.date));
+  String _notifGroup(DateTime dt, DateTime now) {
+    final diff = now.difference(dt).inDays;
+    if (diff <= 1) return "Aujourd'hui";
+    if (diff <= 7) return 'Cette semaine';
+    return '${monthsFr[dt.month - 1]} ${dt.year}';
   }
 }
+
+const monthsFr = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];

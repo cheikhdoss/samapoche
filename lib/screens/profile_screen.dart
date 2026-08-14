@@ -41,7 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     width: 72,
                     height: 72,
-                    decoration: BoxDecoration(color: isDark ? AppDark.accentSoft : AppColors.accentSoft, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppDark.accentSoft : AppColors.accentSoft,
+                      shape: BoxShape.circle,
+                    ),
                     alignment: Alignment.center,
                     child: Text(
                       user.initials,
@@ -54,21 +57,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(user.firstName,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
+                  Text(
+                    user.firstName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Inter',
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(user.email, style: TextStyle(fontSize: 14, color: muted)),
+                  Text(
+                    user.email,
+                    style: TextStyle(fontSize: 14, color: muted),
+                  ),
                   const SizedBox(height: 16),
                   GestureDetector(
                     onTap: () => _editProfile(user),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(color: borderSoft),
                       ),
-                      child: Text('Modifier le profil',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: fg)),
+                      child: Text(
+                        'Modifier le profil',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: fg,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -89,7 +110,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ProfileRow(
                 icon: Icons.lock_outline_rounded,
                 label: 'Changer le mot de passe',
-                onTap: () => _toastInfo('Un email de réinitialisation sera envoyé à ${user.email}'),
+                onTap: () => _toastInfo(
+                  'Un email de réinitialisation sera envoyé à ${user.email}',
+                ),
               ),
               ProfileRow(
                 icon: Icons.tune_rounded,
@@ -100,7 +123,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.info_outline_rounded,
                 label: 'À propos',
                 value: 'v1.0.0',
-                onTap: () => _toastInfo('SamaPoche v1.0.0 — Gestion financière intelligente © 2026'),
+                onTap: () => _toastInfo(
+                  'SamaPoche v1.0.0 — Gestion financière intelligente © 2026',
+                ),
                 divider: false,
               ),
               const Divider(),
@@ -115,17 +140,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ProfileRow(
                 icon: Icons.health_and_safety_outlined,
                 label: 'Sécurité',
-                onTap: () => _toastInfo('🔐 2FA désactivée · Email vérifié · Dernière connexion : aujourd\'hui'),
+                onTap: () => _toastInfo(
+                  '🔐 2FA désactivée · Email vérifié · Dernière connexion : aujourd\'hui',
+                ),
               ),
               ProfileRow(
                 icon: Icons.support_agent_rounded,
                 label: 'Aide & Support',
-                onTap: () => _toastInfo('Email: support@samapoche.com | WhatsApp: +221 77 123 45 67'),
+                onTap: () => _toastInfo(
+                  'Email: support@samapoche.com | WhatsApp: +221 77 123 45 67',
+                ),
               ),
               ProfileRow(
                 icon: Icons.description_outlined,
                 label: 'Conditions & Politique',
-                onTap: () => _toastInfo('Conditions d\'utilisation & Politique de confidentialité — SamaPoche © 2026'),
+                onTap: () => _toastInfo(
+                  'Conditions d\'utilisation & Politique de confidentialité — SamaPoche © 2026',
+                ),
                 divider: false,
               ),
               const Divider(),
@@ -149,7 +180,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'Déconnexion',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: danger),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: danger,
+                        ),
                       ),
                     ],
                   ),
@@ -163,22 +198,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _editBudget() {
-    final controller = TextEditingController(text: formatMontant(AppState.I.budget));
+    final controller = TextEditingController(
+      text: formatMontant(AppState.I.budget),
+    );
     showModal(
       context,
       Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Budget mensuel',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.isDark ? AppDark.fg : AppColors.fg)),
+          Text(
+            'Budget mensuel',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: context.isDark ? AppDark.fg : AppColors.fg,
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: controller,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               hintText: '150 000',
-              hintStyle: TextStyle(color: context.isDark ? AppDark.meta : AppColors.meta),
+              hintStyle: TextStyle(
+                color: context.isDark ? AppDark.meta : AppColors.meta,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -192,13 +237,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 showToast(context, 'Montant invalide', ToastType.error);
                 return;
               }
-              await AppState.I.setBudget(v);
+              final err = await AppState.I.setBudget(v);
               // ignore: use_build_context_synchronously
               if (!context.mounted) return;
               // ignore: use_build_context_synchronously
               Navigator.pop(context);
               // ignore: use_build_context_synchronously
-              showToast(context, 'Budget mis à jour', ToastType.success);
+              showToast(
+                // ignore: use_build_context_synchronously
+                context,
+                err ?? 'Budget mis à jour',
+                err == null ? ToastType.success : ToastType.error,
+              );
             },
           ),
         ],
@@ -245,10 +295,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     AppState.I.setPref(key, v ?? false);
                     setModal(() {});
                   },
-                  title: Text(label,
-                      style: TextStyle(fontSize: 16, color: context.isDark ? AppDark.fg : AppColors.fg)),
+                  title: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: context.isDark ? AppDark.fg : AppColors.fg,
+                    ),
+                  ),
                   controlAffinity: ListTileControlAffinity.trailing,
-                  activeColor: AppState.I.darkMode ? AppDark.accent : AppColors.accent,
+                  activeColor: AppState.I.darkMode
+                      ? AppDark.accent
+                      : AppColors.accent,
                   contentPadding: EdgeInsets.zero,
                 );
               },
@@ -256,7 +313,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
-            child: AppButton(label: 'Fermer', small: true, onPressed: () => Navigator.pop(context)),
+            child: AppButton(
+              label: 'Fermer',
+              small: true,
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
         ],
       ),
@@ -278,30 +339,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Modifier le profil',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.isDark ? AppDark.fg : AppColors.fg)),
+            Text(
+              'Modifier le profil',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: context.isDark ? AppDark.fg : AppColors.fg,
+              ),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: first,
-                    decoration: InputDecoration(labelText: 'Prénom', errorText: firstError),
+                    decoration: InputDecoration(
+                      labelText: 'Prénom',
+                      errorText: firstError,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: TextField(controller: last, decoration: const InputDecoration(labelText: 'Nom')),
+                  child: TextField(
+                    controller: last,
+                    decoration: const InputDecoration(labelText: 'Nom'),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             TextField(
               controller: email,
-              decoration: InputDecoration(labelText: 'Email', errorText: emailError),
+              decoration: InputDecoration(
+                labelText: 'Email',
+                errorText: emailError,
+              ),
             ),
             const SizedBox(height: 16),
-            TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone')),
+            TextField(
+              controller: phone,
+              decoration: const InputDecoration(labelText: 'Téléphone'),
+            ),
             const SizedBox(height: 20),
             ModalFooter(
               cancelLabel: 'Annuler',
@@ -309,16 +388,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onCancel: () => Navigator.pop(context),
               onConfirm: () async {
                 setModal(() {
-                  firstError = first.text.trim().isEmpty ? 'Nom complet requis' : null;
-                  emailError = email.text.trim().isEmpty ? 'Email requis' : null;
+                  firstError = first.text.trim().isEmpty
+                      ? 'Nom complet requis'
+                      : null;
+                  emailError = email.text.trim().isEmpty
+                      ? 'Email requis'
+                      : null;
                 });
                 if (firstError != null || emailError != null) return;
-                await AppState.I.saveProfile(UserProfile(
-                  firstName: first.text.trim(),
-                  lastName: last.text.trim(),
-                  email: email.text.trim(),
-                  phone: phone.text.trim(),
-                ));
+                await AppState.I.saveProfile(
+                  UserProfile(
+                    firstName: first.text.trim(),
+                    lastName: last.text.trim(),
+                    email: email.text.trim(),
+                    phone: phone.text.trim(),
+                  ),
+                );
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 showToast(context, 'Profil mis à jour', ToastType.success);

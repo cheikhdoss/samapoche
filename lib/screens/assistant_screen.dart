@@ -27,20 +27,32 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   void _scrollDown() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
   Future<void> _send([String? text]) async {
     final msg = (text ?? _input.text).trim();
-    if (msg.isEmpty || _typing) return;
+    if (msg.isEmpty || _typing) {
+      return;
+    }
     _input.clear();
-    AppState.I.chat.add(ChatMessage(text: msg, fromUser: true, time: DateTime.now()));
+    AppState.I.chat.add(
+      ChatMessage(text: msg, fromUser: true, time: DateTime.now()),
+    );
     setState(() => _typing = true);
     _scrollDown();
-    await Future.delayed(const Duration(milliseconds: 800));
+    final reply = await AppState.I.chatReply(msg);
     if (!mounted) return;
-    AppState.I.chat.add(ChatMessage(text: AppState.I.aiReply(msg), fromUser: false, time: DateTime.now()));
+    AppState.I.chat.add(
+      ChatMessage(text: reply, fromUser: false, time: DateTime.now()),
+    );
     setState(() => _typing = false);
     _scrollDown();
   }
@@ -59,7 +71,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
     }
     Clipboard.setData(ClipboardData(text: sb.toString())).then((_) {
       if (!mounted) return;
-      showToast(context, 'Conversation exportée dans le presse-papier', ToastType.success);
+      showToast(
+        context,
+        'Conversation exportée dans le presse-papier',
+        ToastType.success,
+      );
     });
   }
 
@@ -91,8 +107,15 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 Container(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.smart_toy_rounded, size: 18, color: Colors.white),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.smart_toy_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -101,17 +124,29 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     children: [
                       Row(
                         children: [
-                          const Text('SamaPoche AI',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
+                          const Text(
+                            'SamaPoche AI',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'Inter',
+                            ),
+                          ),
                           const SizedBox(width: 6),
                           Container(
                             width: 6,
                             height: 6,
-                            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                            decoration: BoxDecoration(
+                              color: accent,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ],
                       ),
-                      Text('En ligne — Réponses instantanées', style: TextStyle(fontSize: 12, color: muted)),
+                      Text(
+                        'En ligne — Réponses instantanées',
+                        style: TextStyle(fontSize: 12, color: muted),
+                      ),
                     ],
                   ),
                 ),
@@ -120,8 +155,15 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   child: Container(
                     width: 36,
                     height: 36,
-                    decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(18)),
-                    child: Icon(Icons.delete_outline_rounded, size: 18, color: fg2),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: fg2,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -130,7 +172,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   child: Container(
                     width: 36,
                     height: 36,
-                    decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(18)),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                     child: Icon(Icons.download_rounded, size: 18, color: fg2),
                   ),
                 ),
@@ -157,7 +202,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
                       );
                     }
                     final m = chat[i];
-                    return _MessageBubble(message: m, onCopy: () => _copyMsg(m.text));
+                    return _MessageBubble(
+                      message: m,
+                      onCopy: () => _copyMsg(m.text),
+                    );
                   },
                 );
               },
@@ -169,15 +217,26 @@ class _AssistantScreenState extends State<AssistantScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _SuggestionChip(label: 'Mon budget ce mois', onTap: () => _send('Mon budget ce mois')),
-                _SuggestionChip(label: 'Mes dépenses', onTap: () => _send('Mes dépenses par catégorie')),
-                _SuggestionChip(label: 'Objectif épargne', onTap: () => _send("Objectif d'épargne")),
+                _SuggestionChip(
+                  label: 'Mon budget ce mois',
+                  onTap: () => _send('Mon budget ce mois'),
+                ),
+                _SuggestionChip(
+                  label: 'Mes dépenses',
+                  onTap: () => _send('Mes dépenses par catégorie'),
+                ),
+                _SuggestionChip(
+                  label: 'Objectif épargne',
+                  onTap: () => _send("Objectif d'épargne"),
+                ),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: borderSoft))),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: borderSoft)),
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -189,7 +248,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
                       hintStyle: TextStyle(fontSize: 16, color: meta),
                       filled: true,
                       fillColor: surface,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(999),
                         borderSide: BorderSide.none,
@@ -215,9 +277,18 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     decoration: BoxDecoration(
                       color: accent,
                       shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8)],
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.send_rounded, size: 20, color: Colors.white),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      size: 20,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -246,25 +317,41 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: user ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: user
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!user) ...[
             Container(
               width: 28,
               height: 28,
-              decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.smart_toy_rounded, size: 14, color: Colors.white),
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.smart_toy_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Column(
-              crossAxisAlignment: user ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: user
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Container(
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: user ? accent : surface,
                     borderRadius: BorderRadius.only(
@@ -287,7 +374,10 @@ class _MessageBubble extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(hhmm(message.time), style: TextStyle(fontSize: 10, color: meta)),
+                    Text(
+                      hhmm(message.time),
+                      style: TextStyle(fontSize: 10, color: meta),
+                    ),
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: onCopy,
@@ -337,7 +427,10 @@ class _TypingBubble extends StatelessWidget {
                   child: Container(
                     width: 7,
                     height: 7,
-                    decoration: BoxDecoration(color: meta, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: meta,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
               ),
@@ -356,7 +449,9 @@ class _SuggestionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surface = context.isDark ? AppDark.surface : AppColors.surface;
-    final borderSoft = context.isDark ? AppDark.borderSoft : AppColors.borderSoft;
+    final borderSoft = context.isDark
+        ? AppDark.borderSoft
+        : AppColors.borderSoft;
     final fg2 = context.isDark ? AppDark.fg2 : AppColors.fg2;
     return GestureDetector(
       onTap: onTap,

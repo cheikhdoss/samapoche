@@ -21,7 +21,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TextEditingController _desc;
   late DateTime _date;
   String? _amountError;
-  final _payments = ['Carte Visa ••8842', 'Orange Money', 'Virement bancaire', 'Prélèvement automatique', 'Espèces'];
+  final _payments = [
+    'Carte Visa ••8842',
+    'Orange Money',
+    'Virement bancaire',
+    'Prélèvement automatique',
+    'Espèces',
+  ];
   late String _payment;
   bool _saving = false;
 
@@ -31,7 +37,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final e = widget.edit;
     _type = e?.type ?? TxnType.expense;
     _category = e?.category ?? 'Alimentation';
-    _amount = TextEditingController(text: e != null ? formatMontant(e.amount) : '');
+    _amount = TextEditingController(
+      text: e != null ? formatMontant(e.amount) : '',
+    );
     _desc = TextEditingController(text: e?.description ?? '');
     _date = e?.date ?? DateTime.now();
     _payment = e?.payment ?? _payments[0];
@@ -56,21 +64,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     });
     final txn = Txn(
       id: widget.edit?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _desc.text.trim().isEmpty ? Categories.byName(_category).name : _desc.text.trim(),
+      name: _desc.text.trim().isEmpty
+          ? Categories.byName(_category).name
+          : _desc.text.trim(),
       category: _category,
       type: _type,
       amount: amount,
-      description: _desc.text.trim().isEmpty ? Categories.byName(_category).name : _desc.text.trim(),
+      description: _desc.text.trim().isEmpty
+          ? Categories.byName(_category).name
+          : _desc.text.trim(),
       payment: _payment,
       date: _date,
     );
+    final String? err;
     if (widget.edit != null) {
-      await AppState.I.updateTxn(txn);
+      err = await AppState.I.updateTxn(txn);
     } else {
-      await AppState.I.addTxn(txn);
+      err = await AppState.I.addTxn(txn);
     }
     if (!mounted) return;
-    showToast(context, widget.edit != null ? 'Transaction modifiée' : 'Transaction enregistrée', ToastType.success);
+    if (err != null) {
+      showToast(context, err, ToastType.error);
+      setState(() => _saving = false);
+      return;
+    }
+    showToast(
+      context,
+      widget.edit != null ? 'Transaction modifiée' : 'Transaction enregistrée',
+      ToastType.success,
+    );
     setState(() => _saving = false);
     if (andNew) {
       setState(() {
@@ -101,7 +123,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final fg = isDark ? AppDark.fg : AppColors.fg;
     final meta = isDark ? AppDark.meta : AppColors.meta;
 
-    final cats = _type == TxnType.expense ? Categories.expenses : [Categories.salaire, Categories.autre];
+    final cats = _type == TxnType.expense
+        ? Categories.expenses
+        : [Categories.salaire, Categories.autres];
 
     return SafeArea(
       child: Scaffold(
@@ -118,15 +142,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     child: Container(
                       width: 36,
                       height: 36,
-                      decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(18)),
+                      decoration: BoxDecoration(
+                        color: surface,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                       child: const Icon(Icons.close_rounded, size: 18),
                     ),
                   ),
                   Expanded(
                     child: Center(
                       child: Text(
-                        widget.edit != null ? 'Modifier la transaction' : 'Nouvelle transaction',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                        widget.edit != null
+                            ? 'Modifier la transaction'
+                            : 'Nouvelle transaction',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Inter',
+                        ),
                       ),
                     ),
                   ),
@@ -138,7 +171,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               // Type toggle
               Container(
                 padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(999)),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(999),
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -168,16 +204,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
               // Amount
               Center(
-                child: Text('F CFA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: muted)),
+                child: Text(
+                  'F CFA',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
+                    color: muted,
+                  ),
+                ),
               ),
               TextField(
                 controller: _amount,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 48, fontWeight: FontWeight.w800, letterSpacing: -0.03, color: fg),
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.03,
+                  color: fg,
+                ),
                 decoration: InputDecoration(
                   hintText: '0',
-                  hintStyle: TextStyle(color: isDark ? AppDark.border : AppColors.border, fontSize: 48, fontWeight: FontWeight.w800),
+                  hintStyle: TextStyle(
+                    color: isDark ? AppDark.border : AppColors.border,
+                    fontSize: 48,
+                    fontWeight: FontWeight.w800,
+                  ),
                   filled: false,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -231,18 +283,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   if (picked != null) setState(() => _date = picked);
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDark ? AppDark.border : AppColors.border, width: 1.5),
+                    border: Border.all(
+                      color: isDark ? AppDark.border : AppColors.border,
+                      width: 1.5,
+                    ),
                   ),
                   child: Row(
                     children: [
                       Icon(Icons.calendar_today_rounded, size: 18, color: meta),
                       const SizedBox(width: 12),
-                      Text(formatDateListe(_date),
-                          style: TextStyle(fontSize: 16, color: fg)),
+                      Text(
+                        formatDateListe(_date),
+                        style: TextStyle(fontSize: 16, color: fg),
+                      ),
                     ],
                   ),
                 ),
@@ -278,7 +338,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   Expanded(
                     flex: 2,
                     child: AppButton(
-                      label: widget.edit != null ? 'Enregistrer' : 'Enregistrer',
+                      label: widget.edit != null
+                          ? 'Enregistrer'
+                          : 'Enregistrer',
                       primary: true,
                       small: true,
                       loading: _saving,
@@ -320,7 +382,11 @@ class _TypeToggle extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _TypeToggle({required this.label, required this.active, required this.onTap});
+  const _TypeToggle({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -354,7 +420,11 @@ class _CatTile extends StatelessWidget {
   final Category cat;
   final bool active;
   final VoidCallback onTap;
-  const _CatTile({required this.cat, required this.active, required this.onTap});
+  const _CatTile({
+    required this.cat,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -382,7 +452,11 @@ class _CatTile extends StatelessWidget {
                 color: active ? accent : cat.bg,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(cat.icon, size: 18, color: active ? Colors.white : cat.fg),
+              child: Icon(
+                cat.icon,
+                size: 18,
+                color: active ? Colors.white : cat.fg,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
