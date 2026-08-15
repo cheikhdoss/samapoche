@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:samapoche/screens/root_shell.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:samapoche/l10n/l10n.dart';
+import 'package:samapoche/router.dart';
 import 'package:samapoche/theme.dart';
 import 'package:samapoche/widgets/widgets.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  final void Function(RouteName) go;
-  const WelcomeScreen({super.key, required this.go});
+  const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final accent = context.isDark ? AppDark.accent : AppColors.accent;
     return SafeArea(
       child: Padding(
@@ -30,9 +33,9 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'SamaPoche',
-              style: TextStyle(
+            Text(
+              l10n.appName,
+              style: const TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.03,
@@ -41,7 +44,7 @@ class WelcomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Gérez mieux. Économisez plus.',
+              l10n.tagline,
               style: TextStyle(
                 fontSize: 17,
                 color: context.isDark ? AppDark.muted : AppColors.muted,
@@ -49,17 +52,17 @@ class WelcomeScreen extends StatelessWidget {
             ),
             const Spacer(),
             AppButton(
-              label: "S'identifier",
+              label: l10n.signIn,
               primary: true,
               large: true,
-              onPressed: () => go(RouteName.login),
+              onPressed: () => context.go(Routes.login),
             ),
             const SizedBox(height: 12),
             AppButton(
-              label: 'Créer un compte',
+              label: l10n.createAccount,
               outline: true,
               large: true,
-              onPressed: () => go(RouteName.signup),
+              onPressed: () => context.go(Routes.signup),
             ),
           ],
         ),

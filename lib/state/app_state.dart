@@ -1,19 +1,32 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
+
+import 'package:samapoche/models/dto.dart';
+import 'package:samapoche/models/models.dart';
+import 'package:samapoche/services/api_client.dart';
+import 'package:samapoche/services/cache.dart';
+import 'package:samapoche/services/observability.dart';
+import 'package:samapoche/services/token_storage.dart';
+import 'package:samapoche/utils/format.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/models.dart';
-import '../services/api_client.dart';
-import '../utils/format.dart';
-
 class AppState extends ChangeNotifier {
-  static final AppState I = AppState._();
+  final Api api;
+  final CacheStore cache;
+  final TokenStorage tokenStorage;
+  final Logger _log = buildLogger('AppState');
 
-  AppState._();
+  AppState({
+    required this.api,
+    required this.cache,
+    required this.tokenStorage,
+  });
 
   SharedPreferences? _prefs;
   bool _loaded = false;
+  bool _syncing = false;
 
   UserProfile? user;
   List<Txn> transactions = [];
@@ -31,12 +44,19 @@ class AppState extends ChangeNotifier {
 
   Map<String, int> _categoryIds = {};
   int? _alimentationBudgetId;
+  String? _lastSyncError;
+  bool _sessionExpired = false;
+  int _pendingCount = 0;
+
+  bool get loaded => _loaded;
+  bool get syncing => _syncing;
+  bool get hasPendingSync => _pendingCount > 0;
+  bool get sessionExpired => _sessionExpired;
+  String? get lastSyncError => _lastSyncError;
 
   Map<int, String> get _categoryNames => {
     for (final e in _categoryIds.entries) e.value: e.key,
   };
-
-  bool get loaded => _loaded;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -49,150 +69,177 @@ class AppState extends ChangeNotifier {
     ecoData = _prefs!.getBool('samapoche_eco') ?? false;
     budgetAuto = _prefs!.getBool('samapoche_budget_auto') ?? true;
 
-    final savedToken = _prefs!.getString('samapoche_token');
-    if (savedToken != null && savedToken.isNotEmpty) {
-      Api.I.token = savedToken;
-      await _restoreFromServer();
+    final stored = await tokenStorage.read() ?? _migrateLegacyToken();
+    if (stored != null && stored.isNotEmpty) {
+      api.token = stored;
+      await refresh();
     }
 
     _loaded = true;
     notifyListeners();
   }
 
-  // ─── Sync serveur ────────────────────────────────────────
-  bool _syncing = false;
-  bool get syncing => _syncing;
+  /// Migration depuis l'ancien stockage SharedPreferences (v1).
+  String? _migrateLegacyToken() {
+    final legacy = _prefs!.getString('samapoche_token');
+    if (legacy == null || legacy.isEmpty) return null;
+    unawaited(tokenStorage.write(legacy));
+    unawaited(_prefs!.remove('samapoche_token'));
+    return legacy;
+  }
 
-  Future<void> refresh() => _restoreFromServer();
+  Future<void> refresh() => _sync(silent: false);
 
-  Future<void> _restoreFromServer() async {
+  Future<void> _sync({required bool silent}) async {
     if (_syncing) return;
+    if (api.token == null) return;
     _syncing = true;
+    _lastSyncError = null;
+    if (!silent) notifyListeners();
     try {
-      final me = await Api.I.me();
-      user = UserProfile.fromServer(me);
-      await _prefs!.setString('samapoche_user', jsonEncode(user!.toJson()));
-      _loadCategories();
+      final me = await api.me();
+      user = UserProfile.fromDto(me);
+      await cache.storeUser(user!.toJson());
+
+      await _loadCategories();
+      await _flushPending();
       await _syncTransactions();
       await _syncBudgets();
       await _syncNotifications();
-      notifyListeners();
+      _sessionExpired = false;
     } on ApiException catch (e) {
+      _log.warning('Sync échoué: ${e.message}');
       if (e.statusCode == 401) {
+        _lastSyncError = e.message;
         await logout(silent: true);
+        _sessionExpired = true;
       } else {
-        _loadFallbackCache();
-        notifyListeners();
+        _lastSyncError = e.message;
+        _loadCachedData();
       }
+    } on Exception catch (e, st) {
+      _log.severe('Sync inattendu', e, st);
+      Observability.capture(e, st);
+      _lastSyncError = 'Erreur inattendue. Réessayez.';
+      _loadCachedData();
     } finally {
       _syncing = false;
+      notifyListeners();
     }
   }
 
   Future<void> _loadCategories() async {
-    try {
-      final list = await Api.I.categories();
-      _categoryIds = {
-        for (final c in list) (c['name'] as String): (c['id'] as num).toInt(),
-      };
-      await _prefs!.setString('samapoche_categories', jsonEncode(list));
-    } on ApiException {
-      final cached = _prefs!.getString('samapoche_categories');
-      if (cached != null) {
-        final list = jsonDecode(cached) as List;
-        _categoryIds = {
-          for (final c in list) (c['name'] as String): (c['id'] as num).toInt(),
-        };
-      }
-    }
-    notifyListeners();
+    final list = await api.categories();
+    _categoryIds = {for (final c in list) c.name: c.id};
+    await cache.storeCategories([for (final c in list) c.toJson()]);
   }
 
   Future<void> _syncTransactions() async {
-    final list = await Api.I.transactions();
-    transactions = [
-      for (final e in list)
-        Txn.fromServer(
-          e as Map<String, dynamic>,
-          categoryNames: _categoryNames,
-        ),
-    ]..sort((a, b) => b.date.compareTo(a.date));
-    await _prefs!.setString(
-      'samapoche_txns',
-      jsonEncode(transactions.map((t) => t.toJson()).toList()),
-    );
-    notifyListeners();
+    final list = await api.transactions();
+    transactions = [for (final d in list) Txn.fromDto(d, _categoryNames)]
+      ..sort((a, b) => b.date.compareTo(a.date));
+    await cache.storeTransactions([for (final d in list) d.toJson()]);
   }
 
   Future<void> _syncBudgets() async {
-    final list = await Api.I.budgets();
-    final now = DateTime.now();
-    final current = list.where(
-      (b) =>
-          (b['month'] as num).toInt() == now.month &&
-          (b['year'] as num).toInt() == now.year,
-    );
-    final alimentation = current.isNotEmpty
-        ? current
-        : list.where((b) => (b['category_name'] as String) == 'Alimentation');
+    final list = await api.budgets();
+    final alimentation = list.where((b) => b.categoryName == 'Alimentation');
     if (alimentation.isNotEmpty) {
-      final b = alimentation.first as Map<String, dynamic>;
-      _alimentationBudgetId = (b['id'] as num).toInt();
-      budget = (b['amount'] as num).round();
+      final b = alimentation.first;
+      _alimentationBudgetId = b.id;
+      budget = b.amount.round();
       await _prefs!.setInt('samapoche_budget', budget);
     }
-    notifyListeners();
+    await cache.storeBudgets([for (final b in list) b.toJson()]);
   }
 
   Future<void> _syncNotifications() async {
-    final list = await Api.I.notifications();
+    final list = await api.notifications();
     final now = DateTime.now();
     notifications = [
       for (final n in list)
-        AppNotification.fromServer(
-          n as Map<String, dynamic>,
-          time: _notifTime(
-            DateTime.parse(n['created_at'] as String).toLocal(),
-            now,
-          ),
-          group: _notifGroup(
-            DateTime.parse(n['created_at'] as String).toLocal(),
-            now,
-          ),
+        AppNotification.fromDto(
+          n,
+          time: _notifTime(n.createdAt.toLocal(), now),
+          group: _notifGroup(n.createdAt.toLocal(), now),
         ),
     ];
-    notifyListeners();
+    await cache.storeNotifications([for (final n in list) n.toJson()]);
   }
 
-  void _loadFallbackCache() {
-    final t = _prefs!.getString('samapoche_txns');
-    if (t != null) {
+  /// Rejoue les écritures différées (créées hors-ligne).
+  Future<void> _flushPending() async {
+    final pending = cache.pendingTransactions;
+    if (pending == null || pending.isEmpty) return;
+    final remaining = <Map<String, dynamic>>[];
+    for (final raw in pending) {
+      final payload = raw as Map<String, dynamic>;
       try {
-        transactions =
-            (jsonDecode(t) as List)
-                .map((e) => Txn.fromJson(e as Map<String, dynamic>))
-                .toList()
-              ..sort((a, b) => b.date.compareTo(a.date));
-      } catch (_) {}
+        await api.createTransaction(
+          amount: (payload['amount'] as num).toDouble(),
+          type: payload['type'] == 'income'
+              ? TransactionType.income
+              : TransactionType.expense,
+          categoryId: (payload['category_id'] as num).toInt(),
+          description: payload['description'] as String?,
+          date: payload['transaction_date'] != null
+              ? DateTime.parse(payload['transaction_date'] as String)
+              : null,
+        );
+      } on ApiException catch (e) {
+        _log.warning('Rejeu d\'une écriture différée échoué: ${e.message}');
+        remaining.add(payload);
+      }
     }
-    final u = _prefs!.getString('samapoche_user');
-    if (u != null) {
-      try {
-        user = UserProfile.fromJson(jsonDecode(u) as Map<String, dynamic>);
-      } catch (_) {}
+    _pendingCount = remaining.length;
+    if (remaining.isEmpty) {
+      await cache.clearPendingTransactions();
+    } else {
+      await cache.storePendingTransactions(remaining);
+    }
+  }
+
+  /// Hors-ligne : dernière image connue du serveur, sinon rien.
+  void _loadCachedData() {
+    if (_categoryIds.isEmpty) {
+      final c = cache.categories;
+      if (c != null) {
+        final cats = [
+          for (final e in c)
+            CategoryDto.fromJson(Map<String, dynamic>.from(e as Map)),
+        ];
+        _categoryIds = {for (final cat in cats) cat.name: cat.id};
+      }
+    }
+    if (user == null) {
+      final u = cache.user;
+      if (u != null) user = UserProfile.fromJson(u.cast<String, dynamic>());
+    }
+    if (transactions.isEmpty) {
+      final t = cache.transactions;
+      if (t != null) {
+        transactions = [
+          for (final e in t)
+            Txn.fromDto(
+              TransactionDto.fromJson(Map<String, dynamic>.from(e as Map)),
+              _categoryNames,
+            ),
+        ]..sort((a, b) => b.date.compareTo(a.date));
+      }
     }
   }
 
   // ─── Auth ────────────────────────────────────────────────
   Future<String?> signup(UserProfile p, String password) async {
     try {
-      await Api.I.register(
+      final token = await api.register(
         email: p.email,
         password: password,
         fullName: p.fullName,
       );
-      await _prefs!.setString('samapoche_token', Api.I.token!);
-      await _restoreFromServer();
+      api.token = token.accessToken;
+      await tokenStorage.write(token.accessToken);
+      await _sync(silent: true);
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -201,9 +248,10 @@ class AppState extends ChangeNotifier {
 
   Future<String?> login(String email, String password) async {
     try {
-      await Api.I.login(email: email, password: password);
-      await _prefs!.setString('samapoche_token', Api.I.token!);
-      await _restoreFromServer();
+      final token = await api.login(email: email, password: password);
+      api.token = token.accessToken;
+      await tokenStorage.write(token.accessToken);
+      await _sync(silent: true);
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -215,55 +263,73 @@ class AppState extends ChangeNotifier {
     transactions = [];
     notifications = [];
     chat.clear();
-    Api.I.token = null;
+    api.token = null;
     _alimentationBudgetId = null;
-    if (_prefs != null) {
-      await _prefs!.remove('samapoche_token');
-      await _prefs!.remove('samapoche_user');
-    }
+    _sessionExpired = false;
+    _lastSyncError = null;
+    await tokenStorage.delete();
+    await cache.clearUserData();
     if (!silent) notifyListeners();
   }
 
   Future<void> saveProfile(UserProfile p) async {
     user = p;
-    await _prefs!.setString('samapoche_user', jsonEncode(p.toJson()));
+    await cache.storeUser(p.toJson());
     notifyListeners();
   }
 
   // ─── Transactions ────────────────────────────────────────
+  /// Écriture offline-first : l'app est optimiste, le serveur suit.
+  /// Si le serveur est injoignable, l'écriture est différée et rejouée
+  /// automatiquement à la prochaine synchronisation.
   Future<String?> addTxn(Txn t) async {
     final catId = _categoryIds[t.category];
     if (catId == null) return 'Catégorie inconnue du serveur.';
+    final payload = {
+      'amount': t.amount.toDouble(),
+      'type': t.type.name,
+      'category_id': catId,
+      if (t.description.isNotEmpty) 'description': t.description,
+      'transaction_date': t.date.toUtc().toIso8601String(),
+    };
+    transactions.insert(0, t);
+    await _cacheTxns();
+    notifyListeners();
     try {
-      final created = await Api.I.createTransaction(
+      final created = await api.createTransaction(
         amount: t.amount.toDouble(),
-        type: t.type.name,
+        type: t.type == TxnType.income
+            ? TransactionType.income
+            : TransactionType.expense,
         categoryId: catId,
         description: t.description.isNotEmpty ? t.description : null,
         date: t.date,
       );
-      transactions.insert(
-        0,
-        Txn.fromServer(created, categoryNames: _categoryNames),
-      );
-      await _prefs!.setString(
-        'samapoche_txns',
-        jsonEncode(transactions.map((x) => x.toJson()).toList()),
-      );
-      notifyListeners();
+      final i = transactions.indexWhere((x) => x.id == t.id);
+      if (i >= 0) transactions[i] = Txn.fromDto(created, _categoryNames);
+      await _cacheTxns();
       return null;
     } on ApiException catch (e) {
-      return e.message;
+      _log.info('Création différée (hors-ligne): ${e.message}');
+      await cache.storePendingTransactions([
+        ...(cache.pendingTransactions ?? <dynamic>[])
+            .cast<Map<String, dynamic>>(),
+        payload,
+      ]);
+      _pendingCount += 1;
+      notifyListeners();
+      return null;
     }
   }
 
   Future<String?> updateTxn(Txn t) async {
+    if (api.token == null) return 'Session expirée. Reconnectez-vous.';
     final id = int.tryParse(t.id);
     if (id == null) return 'Transaction introuvable.';
     final catId = _categoryIds[t.category];
     if (catId == null) return 'Catégorie inconnue du serveur.';
     try {
-      await Api.I.updateTransaction(
+      await api.updateTransaction(
         id,
         amount: t.amount.toDouble(),
         categoryId: catId,
@@ -271,15 +337,28 @@ class AppState extends ChangeNotifier {
       );
       final i = transactions.indexWhere((x) => x.id == t.id);
       if (i >= 0) transactions[i] = t;
-      await _prefs!.setString(
-        'samapoche_txns',
-        jsonEncode(transactions.map((x) => x.toJson()).toList()),
-      );
+      await _cacheTxns();
       notifyListeners();
       return null;
     } on ApiException catch (e) {
       return e.message;
     }
+  }
+
+  Future<void> _cacheTxns() async {
+    await cache.storeTransactions([
+      for (final t in transactions)
+        {
+          'id': int.tryParse(t.id) ?? 0,
+          'user_id': user?.id ?? 0,
+          'amount': t.amount.toDouble(),
+          'type': t.type.name,
+          'description': t.description.isEmpty ? null : t.description,
+          'category_id': _categoryIds[t.category] ?? 0,
+          'transaction_date': t.date.toUtc().toIso8601String(),
+          'created_at': t.date.toUtc().toIso8601String(),
+        },
+    ]);
   }
 
   // ─── Dashboard computed ──────────────────────────────────
@@ -346,43 +425,49 @@ class AppState extends ChangeNotifier {
 
   // ─── Notifications ──────────────────────────────────────
   Future<void> markAllRead() async {
-    for (final n in notifications) {
-      n.read = true;
-    }
+    notifications = [for (final n in notifications) n.copyWith(read: true)];
     notifyListeners();
     try {
-      await Api.I.markAllNotificationsRead();
-    } on ApiException catch (_) {}
+      await api.markAllNotificationsRead();
+    } on ApiException catch (e) {
+      _log.warning('markAllRead: ${e.message}');
+    }
   }
 
   Future<void> markRead(AppNotification n) async {
-    n.read = true;
+    notifications = [
+      for (final x in notifications) x.id == n.id ? x.copyWith(read: true) : x,
+    ];
     notifyListeners();
     if (n.id != null) {
       try {
-        await Api.I.markNotificationRead(n.id!);
-      } on ApiException catch (_) {}
+        await api.markNotificationRead(n.id!);
+      } on ApiException catch (e) {
+        _log.warning('markRead: ${e.message}');
+      }
     }
   }
 
   // ─── Chat ────────────────────────────────────────────────
   Future<String> chatReply(String message) async {
     try {
-      return await Api.I.chat(message);
+      final reply = await api.chat(message);
+      return reply.reply;
     } on ApiException catch (e) {
       return 'Je n\'ai pas pu répondre pour le moment. ${e.message}';
     }
   }
 
   void clearChat() {
-    chat.clear();
-    chat.add(
-      ChatMessage(
-        text: 'Conversation effacée. Je suis là pour vous aider !',
-        fromUser: false,
-        time: DateTime.now(),
-      ),
-    );
+    chat
+      ..clear()
+      ..add(
+        ChatMessage(
+          text: 'Conversation effacée. Je suis là pour vous aider !',
+          fromUser: false,
+          time: DateTime.now(),
+        ),
+      );
     notifyListeners();
   }
 
@@ -397,15 +482,15 @@ class AppState extends ChangeNotifier {
     final now = DateTime.now();
     try {
       if (_alimentationBudgetId != null) {
-        await Api.I.updateBudget(_alimentationBudgetId!, amount: v.toDouble());
+        await api.updateBudget(_alimentationBudgetId!, amount: v.toDouble());
       } else {
-        final created = await Api.I.createBudget(
+        final created = await api.createBudget(
           categoryId: catId,
           amount: v.toDouble(),
           month: now.month,
           year: now.year,
         );
-        _alimentationBudgetId = (created['id'] as num).toInt();
+        _alimentationBudgetId = created.id;
       }
       return null;
     } on ApiException catch (e) {
@@ -417,9 +502,9 @@ class AppState extends ChangeNotifier {
   }
 
   // ─── Settings ────────────────────────────────────────────
-  Future<void> setDarkMode(bool v) async {
-    darkMode = v;
-    await _prefs!.setBool('samapoche_dark', v);
+  Future<void> setDarkMode({required bool value}) async {
+    darkMode = value;
+    await _prefs!.setBool('samapoche_dark', value);
     notifyListeners();
   }
 
@@ -429,7 +514,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setPref(String key, bool v) async {
+  Future<void> setPref(String key, {required bool value}) async {
+    final v = value;
     switch (key) {
       case 'push':
         notifPush = v;

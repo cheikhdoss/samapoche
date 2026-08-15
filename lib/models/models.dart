@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme.dart';
+import 'package:samapoche/models/dto.dart';
+import 'package:samapoche/theme.dart';
 
 enum TxnType { expense, income }
 
@@ -78,7 +79,7 @@ class Categories {
     Icons.more_horiz_rounded,
   );
 
-  static const all = [
+  static const List<Category> all = [
     alimentation,
     transport,
     logement,
@@ -93,7 +94,7 @@ class Categories {
   static Category byName(String name) =>
       all.firstWhere((c) => c.name == name, orElse: () => autres);
 
-  static const expenses = [
+  static const List<Category> expenses = [
     alimentation,
     transport,
     logement,
@@ -128,44 +129,20 @@ class Txn {
 
   int get signed => type == TxnType.expense ? -amount : amount;
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'category': category,
-    'type': type.name,
-    'amount': amount,
-    'description': description,
-    'payment': payment,
-    'date': date.toIso8601String(),
-  };
-
-  factory Txn.fromJson(Map<String, dynamic> j) => Txn(
-    id: j['id'].toString(),
-    name: j['name'] as String,
-    category: j['category'] as String,
-    type: TxnType.values.firstWhere((t) => t.name == j['type']),
-    amount: (j['amount'] as num).toInt(),
-    description: (j['description'] ?? '') as String,
-    payment: (j['payment'] ?? '') as String,
-    date: DateTime.parse(j['date'] as String).toLocal(),
-  );
-
-  factory Txn.fromServer(
-    Map<String, dynamic> j, {
-    required Map<int, String> categoryNames,
-  }) {
-    final desc = (j['description'] ?? '') as String;
-    final catId = (j['category_id'] as num).toInt();
-    final catName = categoryNames[catId] ?? 'Autres';
+  factory Txn.fromDto(TransactionDto dto, Map<int, String> categoryNames) {
+    final desc = dto.description ?? '';
+    final catName = categoryNames[dto.categoryId] ?? 'Autres';
     return Txn(
-      id: j['id'].toString(),
+      id: dto.id.toString(),
       name: desc.isNotEmpty ? desc : catName,
       category: catName,
-      type: j['type'] == 'income' ? TxnType.income : TxnType.expense,
-      amount: (j['amount'] as num).round(),
+      type: dto.type == TransactionType.income
+          ? TxnType.income
+          : TxnType.expense,
+      amount: dto.amount.round(),
       description: desc,
       payment: '',
-      date: DateTime.parse(j['transaction_date'] as String).toLocal(),
+      date: dto.transactionDate.toLocal(),
     );
   }
 }
@@ -186,6 +163,7 @@ class UserProfile {
   });
 
   String get fullName => '$firstName $lastName'.trim();
+
   String get initials =>
       (firstName.isNotEmpty ? firstName.characters.first : '?') +
       (lastName.isNotEmpty ? lastName.characters.first : '').toUpperCase();
@@ -206,18 +184,17 @@ class UserProfile {
     phone: (j['phone'] ?? '') as String,
   );
 
-  factory UserProfile.fromServer(Map<String, dynamic> j) {
-    final full = (j['full_name'] ?? '') as String;
-    final parts = full
+  factory UserProfile.fromDto(UserDto dto) {
+    final parts = dto.fullName
         .trim()
         .split(RegExp(r'\s+'))
         .where((p) => p.isNotEmpty)
         .toList();
     return UserProfile(
-      id: j['id'] as int?,
+      id: dto.id,
       firstName: parts.isNotEmpty ? parts.first : 'Utilisateur',
       lastName: parts.length > 1 ? parts.sublist(1).join(' ') : '',
-      email: j['email'] as String,
+      email: dto.email,
     );
   }
 }
@@ -231,9 +208,9 @@ class AppNotification {
   final Color bg;
   final Color fg;
   final IconData icon;
-  bool read;
+  final bool read;
 
-  AppNotification({
+  const AppNotification({
     this.id,
     required this.title,
     required this.desc,
@@ -245,25 +222,36 @@ class AppNotification {
     this.read = false,
   });
 
-  factory AppNotification.fromServer(
-    Map<String, dynamic> j, {
+  factory AppNotification.fromDto(
+    NotificationDto dto, {
     required String time,
     required String group,
   }) {
-    final iconName = (j['icon'] ?? 'notifications') as String;
-    final (bg, fg, icon) = _iconStyle(iconName);
+    final (bg, fg, icon) = _iconStyle(dto.icon);
     return AppNotification(
-      id: j['id'] as int?,
-      title: j['title'] as String,
-      desc: j['message'] as String,
+      id: dto.id,
+      title: dto.title,
+      desc: dto.message,
       time: time,
       group: group,
       bg: bg,
       fg: fg,
       icon: icon,
-      read: j['read'] as bool? ?? false,
+      read: dto.read,
     );
   }
+
+  AppNotification copyWith({bool? read}) => AppNotification(
+    id: id,
+    title: title,
+    desc: desc,
+    time: time,
+    group: group,
+    bg: bg,
+    fg: fg,
+    icon: icon,
+    read: read ?? this.read,
+  );
 
   static (Color, Color, IconData) _iconStyle(String name) {
     switch (name) {

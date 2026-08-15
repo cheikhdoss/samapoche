@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
 import 'package:samapoche/models/models.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
@@ -28,10 +32,12 @@ class _AssistantScreenState extends State<AssistantScreen> {
   void _scrollDown() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+        unawaited(
+          _scroll.animateTo(
+            _scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          ),
         );
       }
     });
@@ -39,18 +45,17 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   Future<void> _send([String? text]) async {
     final msg = (text ?? _input.text).trim();
-    if (msg.isEmpty || _typing) {
-      return;
-    }
+    if (msg.isEmpty || _typing) return;
+    final state = context.read<AppState>();
     _input.clear();
-    AppState.I.chat.add(
+    state.chat.add(
       ChatMessage(text: msg, fromUser: true, time: DateTime.now()),
     );
     setState(() => _typing = true);
     _scrollDown();
-    final reply = await AppState.I.chatReply(msg);
+    final reply = await state.chatReply(msg);
     if (!mounted) return;
-    AppState.I.chat.add(
+    state.chat.add(
       ChatMessage(text: reply, fromUser: false, time: DateTime.now()),
     );
     setState(() => _typing = false);
@@ -58,32 +63,36 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 
   void _clearChat() {
-    AppState.I.clearChat();
+    context.read<AppState>().clearChat();
     _scrollDown();
   }
 
   void _exportChat() {
-    final sb = StringBuffer('SamaPoche — Export de la conversation\n');
-    sb.write('Exporté le ${formatDateDetail(DateTime.now())}\n\n');
-    for (final m in AppState.I.chat) {
+    final sb = StringBuffer('SamaPoche — Export de la conversation\n')
+      ..write('Exporté le ${formatDateDetail(DateTime.now())}\n\n');
+    for (final m in context.read<AppState>().chat) {
       final who = m.fromUser ? 'Vous' : 'SamaPoche AI';
       sb.write('[$who · ${hhmm(m.time)}]\n${m.text}\n\n');
     }
-    Clipboard.setData(ClipboardData(text: sb.toString())).then((_) {
-      if (!mounted) return;
-      showToast(
-        context,
-        'Conversation exportée dans le presse-papier',
-        ToastType.success,
-      );
-    });
+    unawaited(
+      Clipboard.setData(ClipboardData(text: sb.toString())).then((_) {
+        if (!mounted) return;
+        showToast(
+          context,
+          'Conversation exportée dans le presse-papier',
+          ToastType.success,
+        );
+      }),
+    );
   }
 
   void _copyMsg(String text) {
-    Clipboard.setData(ClipboardData(text: text)).then((_) {
-      if (!mounted) return;
-      showToast(context, 'Message copié', ToastType.success);
-    });
+    unawaited(
+      Clipboard.setData(ClipboardData(text: text)).then((_) {
+        if (!mounted) return;
+        showToast(context, 'Message copié', ToastType.success);
+      }),
+    );
   }
 
   @override
@@ -150,33 +159,41 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: _clearChat,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: surface,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: fg2,
+                Semantics(
+                  button: true,
+                  label: 'Effacer la conversation',
+                  child: GestureDetector(
+                    onTap: _clearChat,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: surface,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: fg2,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _exportChat,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: surface,
-                      borderRadius: BorderRadius.circular(18),
+                Semantics(
+                  button: true,
+                  label: 'Exporter la conversation',
+                  child: GestureDetector(
+                    onTap: _exportChat,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: surface,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(Icons.download_rounded, size: 18, color: fg2),
                     ),
-                    child: Icon(Icons.download_rounded, size: 18, color: fg2),
                   ),
                 ),
               ],
@@ -184,9 +201,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ),
           Expanded(
             child: ListenableBuilder(
-              listenable: AppState.I,
+              listenable: context.watch<AppState>(),
               builder: (context, _) {
-                final chat = AppState.I.chat;
+                final chat = context.read<AppState>().chat;
                 return ListView.builder(
                   controller: _scroll,
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -268,26 +285,30 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _send(),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      size: 20,
-                      color: Colors.white,
+                Semantics(
+                  button: true,
+                  label: 'Envoyer le message',
+                  child: GestureDetector(
+                    onTap: _send,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.send_rounded,
+                        size: 20,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -379,9 +400,14 @@ class _MessageBubble extends StatelessWidget {
                       style: TextStyle(fontSize: 10, color: meta),
                     ),
                     const SizedBox(width: 8),
-                    GestureDetector(
+                    InkWell(
                       onTap: onCopy,
-                      child: Icon(Icons.copy_rounded, size: 12, color: meta),
+                      child: Icon(
+                        Icons.copy_rounded,
+                        size: 12,
+                        color: meta,
+                        semanticLabel: 'Copier le message',
+                      ),
                     ),
                   ],
                 ),

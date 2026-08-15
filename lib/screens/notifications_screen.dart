@@ -1,13 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import 'package:samapoche/models/models.dart';
-import 'package:samapoche/screens/root_shell.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
 import 'package:samapoche/widgets/widgets.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  final void Function(RouteName) go;
-  const NotificationsScreen({super.key, required this.go});
+  const NotificationsScreen({super.key});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -23,98 +26,96 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final accent = isDark ? AppDark.accent : AppColors.accent;
 
     return SafeArea(
-      child: ListenableBuilder(
-        listenable: AppState.I,
-        builder: (context, _) {
-          final notifs = AppState.I.notifications;
-          final filtered = _filter == 'Toutes'
-              ? notifs
-              : _filter == 'Non lues'
-              ? notifs.where((n) => !n.read).toList()
-              : notifs.where((n) => n.read).toList();
-
-          final groups = <String, List<AppNotification>>{};
-          for (final n in filtered) {
-            groups.putIfAbsent(n.group, () => []).add(n);
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => widget.go(RouteName.home),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppDark.surface
-                                  : AppColors.surface,
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: const Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              size: 16,
-                            ),
-                          ),
+                    GestureDetector(
+                      onTap: () => context.pop(),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: isDark ? AppDark.surface : AppColors.surface,
+                          borderRadius: BorderRadius.circular(18),
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'Notifications',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Inter',
-                            ),
-                          ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 16,
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            AppState.I.markAllRead();
-                            showToast(
-                              context,
-                              'Toutes les notifications sont marquées comme lues',
-                              ToastType.success,
-                            );
-                          },
-                          child: Text(
-                            'Tout marquer comme lu',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: accent,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        for (final f in ['Toutes', 'Non lues', 'Lues'])
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: AppChip(
-                              label: f,
-                              active: _filter == f,
-                              onTap: () => setState(() => _filter = f),
-                            ),
-                          ),
-                      ],
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Notifications',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        unawaited(context.read<AppState>().markAllRead());
+                        showToast(
+                          context,
+                          'Toutes les notifications sont marquées comme lues',
+                          ToastType.success,
+                        );
+                      },
+                      child: Text(
+                        'Tout marquer comme lu',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: accent,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: ListView(
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    for (final f in ['Toutes', 'Non lues', 'Lues'])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: AppChip(
+                          label: f,
+                          active: _filter == f,
+                          onTap: () => setState(() => _filter = f),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListenableBuilder(
+              listenable: context.watch<AppState>(),
+              builder: (context, _) {
+                final notifs = context.read<AppState>().notifications;
+                final filtered = _filter == 'Toutes'
+                    ? notifs
+                    : _filter == 'Non lues'
+                    ? notifs.where((n) => !n.read).toList()
+                    : notifs.where((n) => n.read).toList();
+
+                final groups = <String, List<AppNotification>>{};
+                for (final n in filtered) {
+                  groups.putIfAbsent(n.group, () => []).add(n);
+                }
+
+                return ListView(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                   children: [
                     for (final entry in groups.entries) ...[
@@ -141,11 +142,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                       ),
                   ],
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -166,7 +167,7 @@ class _NotifItem extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        AppState.I.markRead(notification);
+        unawaited(context.read<AppState>().markRead(notification));
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

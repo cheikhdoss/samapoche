@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import 'package:samapoche/l10n/l10n.dart';
 import 'package:samapoche/models/models.dart';
-import 'package:samapoche/screens/root_shell.dart';
-import 'package:samapoche/theme.dart';
+import 'package:samapoche/router.dart';
 import 'package:samapoche/state/app_state.dart';
+import 'package:samapoche/theme.dart';
 import 'package:samapoche/widgets/widgets.dart';
 
 class SignupScreen extends StatefulWidget {
-  final void Function(RouteName) go;
-  const SignupScreen({super.key, required this.go});
+  const SignupScreen({super.key});
 
   @override
   State<SignupScreen> createState() => _SignupScreenState();
@@ -24,12 +27,12 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _terms = false;
   bool _loading = false;
 
-  String? _firstError,
-      _lastError,
-      _emailError,
-      _phoneError,
-      _passError,
-      _confirmError;
+  String? _firstError;
+  String? _lastError;
+  String? _emailError;
+  String? _phoneError;
+  String? _passError;
+  String? _confirmError;
 
   @override
   void dispose() {
@@ -43,20 +46,21 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _signup() async {
+    final l10n = context.l10n;
     setState(() {
-      _firstError = _first.text.trim().isEmpty ? 'Prénom requis' : null;
-      _lastError = _last.text.trim().isEmpty ? 'Nom requis' : null;
-      _emailError = _email.text.trim().isEmpty ? 'Email requis' : null;
-      _phoneError = _phone.text.trim().isEmpty ? 'Téléphone requis' : null;
+      _firstError = _first.text.trim().isEmpty ? l10n.firstNameRequired : null;
+      _lastError = _last.text.trim().isEmpty ? l10n.lastNameRequired : null;
+      _emailError = _email.text.trim().isEmpty ? l10n.emailRequired : null;
+      _phoneError = _phone.text.trim().isEmpty ? l10n.phoneRequired : null;
       _passError = _pass.text.isEmpty
-          ? 'Mot de passe requis'
+          ? l10n.passwordRequired
           : _pass.text.length < 8
-          ? '8 caractères minimum'
+          ? l10n.passwordMin8
           : null;
       _confirmError = _confirm.text.isEmpty
-          ? 'Confirmation requise'
+          ? l10n.confirmationRequired
           : _confirm.text != _pass.text
-          ? 'Les mots de passe ne correspondent pas'
+          ? l10n.passwordsMismatch
           : null;
     });
     if ([
@@ -70,16 +74,12 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
     if (!_terms) {
-      showToast(
-        context,
-        'Veuillez accepter les conditions d\'utilisation',
-        ToastType.warning,
-      );
+      showToast(context, l10n.acceptTermsRequired, ToastType.warning);
       return;
     }
 
     setState(() => _loading = true);
-    final err = await AppState.I.signup(
+    final err = await context.read<AppState>().signup(
       UserProfile(
         firstName: _first.text.trim(),
         lastName: _last.text.trim(),
@@ -93,13 +93,14 @@ class _SignupScreenState extends State<SignupScreen> {
     if (err != null) {
       showToast(context, err, ToastType.error);
     } else {
-      showToast(context, 'Compte créé avec succès !', ToastType.success);
-      widget.go(RouteName.home);
+      showToast(context, l10n.signupSuccess, ToastType.success);
+      context.go(Routes.home);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final isDark = context.isDark;
     final muted = isDark ? AppDark.muted : AppColors.muted;
     final accent = isDark ? AppDark.accent : AppColors.accent;
@@ -125,7 +126,7 @@ class _SignupScreenState extends State<SignupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () => widget.go(RouteName.welcome),
+              onTap: () => context.go(Routes.welcome),
               child: Padding(
                 padding: const EdgeInsets.all(4),
                 child: Row(
@@ -133,18 +134,18 @@ class _SignupScreenState extends State<SignupScreen> {
                   children: [
                     const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Retour',
-                      style: TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                    Text(
+                      l10n.back,
+                      style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Créer un compte',
-              style: TextStyle(
+            Text(
+              l10n.signupTitle,
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
                 fontFamily: 'Inter',
@@ -152,7 +153,7 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Rejoignez SamaPoche en un instant',
+              l10n.signupSubtitle,
               style: TextStyle(fontSize: 16, color: muted),
             ),
             const SizedBox(height: 28),
@@ -161,14 +162,14 @@ class _SignupScreenState extends State<SignupScreen> {
                 Expanded(
                   child: TextField(
                     controller: _first,
-                    decoration: dec('Prénom', _firstError),
+                    decoration: dec(l10n.firstName, _firstError),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: _last,
-                    decoration: dec('Nom', _lastError),
+                    decoration: dec(l10n.lastName, _lastError),
                   ),
                 ),
               ],
@@ -177,19 +178,19 @@ class _SignupScreenState extends State<SignupScreen> {
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
-              decoration: dec('Email', _emailError),
+              decoration: dec(l10n.email, _emailError),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _phone,
               keyboardType: TextInputType.phone,
-              decoration: dec('Téléphone', _phoneError),
+              decoration: dec(l10n.phone, _phoneError),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _pass,
               obscureText: !_showPass,
-              decoration: dec('Mot de passe', _passError).copyWith(
+              decoration: dec(l10n.password, _passError).copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
                     _showPass
@@ -206,7 +207,7 @@ class _SignupScreenState extends State<SignupScreen> {
             TextField(
               controller: _confirm,
               obscureText: !_showPass,
-              decoration: dec('Confirmer le mot de passe', _confirmError),
+              decoration: dec(l10n.confirmPassword, _confirmError),
             ),
             const SizedBox(height: 20),
             GestureDetector(
@@ -235,19 +236,19 @@ class _SignupScreenState extends State<SignupScreen> {
                   Expanded(
                     child: Text.rich(
                       TextSpan(
-                        text: "J'accepte les ",
+                        text: l10n.acceptTermsPrefix,
                         style: TextStyle(fontSize: 14, color: fg2, height: 1.4),
                         children: [
                           TextSpan(
-                            text: 'conditions d\'utilisation',
+                            text: l10n.termsLink,
                             style: TextStyle(
                               color: accent,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          TextSpan(text: ' et la '),
+                          TextSpan(text: l10n.andPrivacy),
                           TextSpan(
-                            text: 'politique de confidentialité',
+                            text: l10n.privacyLink,
                             style: TextStyle(
                               color: accent,
                               fontWeight: FontWeight.w600,
@@ -262,7 +263,7 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
             const SizedBox(height: 20),
             AppButton(
-              label: "S'inscrire",
+              label: l10n.signUp,
               primary: true,
               loading: _loading,
               onPressed: _signup,
@@ -270,16 +271,16 @@ class _SignupScreenState extends State<SignupScreen> {
             const SizedBox(height: 20),
             Center(
               child: Text(
-                'Déjà un compte ? ',
+                l10n.alreadyAccount,
                 style: TextStyle(fontSize: 14, color: muted),
               ),
             ),
             const SizedBox(height: 4),
             Center(
               child: GestureDetector(
-                onTap: () => widget.go(RouteName.login),
+                onTap: () => context.go(Routes.login),
                 child: Text(
-                  'Se connecter',
+                  l10n.loginLink,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,

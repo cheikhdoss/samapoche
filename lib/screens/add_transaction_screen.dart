@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import 'package:samapoche/models/models.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
@@ -7,8 +10,7 @@ import 'package:samapoche/widgets/widgets.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final Txn? edit;
-  final VoidCallback? onClose;
-  const AddTransactionScreen({super.key, this.edit, this.onClose});
+  const AddTransactionScreen({super.key, this.edit});
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -62,26 +64,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _amountError = null;
       _saving = true;
     });
+    final name = _desc.text.trim().isEmpty
+        ? Categories.byName(_category).name
+        : _desc.text.trim();
     final txn = Txn(
       id: widget.edit?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _desc.text.trim().isEmpty
-          ? Categories.byName(_category).name
-          : _desc.text.trim(),
+      name: name,
       category: _category,
       type: _type,
       amount: amount,
-      description: _desc.text.trim().isEmpty
-          ? Categories.byName(_category).name
-          : _desc.text.trim(),
+      description: name,
       payment: _payment,
       date: _date,
     );
-    final String? err;
-    if (widget.edit != null) {
-      err = await AppState.I.updateTxn(txn);
-    } else {
-      err = await AppState.I.addTxn(txn);
-    }
+    final err = widget.edit != null
+        ? await context.read<AppState>().updateTxn(txn)
+        : await context.read<AppState>().addTxn(txn);
     if (!mounted) return;
     if (err != null) {
       showToast(context, err, ToastType.error);
@@ -107,11 +105,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   void _close() {
-    if (widget.onClose != null) {
-      widget.onClose!();
-    } else {
-      Navigator.of(context).pop();
-    }
+    context.canPop() ? context.pop() : context.go('/home');
   }
 
   @override
@@ -242,7 +236,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               const SizedBox(height: 16),
 
-              UppercaseLabel('Catégorie'),
+              const UppercaseLabel('Catégorie'),
               GridView.count(
                 crossAxisCount: 4,
                 shrinkWrap: true,
@@ -260,7 +254,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               const SizedBox(height: 20),
 
-              FieldLabel('Description'),
+              const FieldLabel('Description'),
               TextField(
                 controller: _desc,
                 decoration: InputDecoration(
@@ -270,7 +264,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               const SizedBox(height: 16),
 
-              FieldLabel('Date'),
+              const FieldLabel('Date'),
               InkWell(
                 onTap: () async {
                   final picked = await showDatePicker(
@@ -309,7 +303,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               const SizedBox(height: 16),
 
-              FieldLabel('Paiement'),
+              const FieldLabel('Paiement'),
               DropdownButtonFormField<String>(
                 initialValue: _payment,
                 decoration: InputDecoration(filled: true, fillColor: surface),
@@ -338,13 +332,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   Expanded(
                     flex: 2,
                     child: AppButton(
-                      label: widget.edit != null
-                          ? 'Enregistrer'
-                          : 'Enregistrer',
+                      label: 'Enregistrer',
                       primary: true,
                       small: true,
                       loading: _saving,
-                      onPressed: () => _save(),
+                      onPressed: _save,
                     ),
                   ),
                   const SizedBox(width: 10),

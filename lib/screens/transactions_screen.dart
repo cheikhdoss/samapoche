@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import 'package:samapoche/models/models.dart';
-import 'package:samapoche/screens/add_transaction_screen.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
 import 'package:samapoche/utils/format.dart';
@@ -22,161 +26,167 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final s = context.watch<AppState>();
+    final now = DateTime.now();
+    final filtered = _applyFilters(s.transactions, now);
+
+    // Regroupement par mois
+    final groups = <String, List<Txn>>{};
+    for (final t in filtered) {
+      final key = moisAnnee(t.date);
+      groups.putIfAbsent(key, () => []).add(t);
+    }
+
     return SafeArea(
-      child: ListenableBuilder(
-        listenable: AppState.I,
-        builder: (context, _) {
-          final s = AppState.I;
-          final now = DateTime.now();
-          final filtered = _applyFilters(s.transactions, now);
-
-          // Regroupement par mois
-          final groups = <String, List<Txn>>{};
-          for (final t in filtered) {
-            final key = moisAnnee(t.date);
-            groups.putIfAbsent(key, () => []).add(t);
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Transactions',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
                   children: [
-                    const Text(
-                      'Transactions',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Inter',
+                    Expanded(
+                      child: TextField(
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher une transaction…',
+                          hintStyle: TextStyle(
+                            fontSize: 16,
+                            color: context.isDark
+                                ? AppDark.meta
+                                : AppColors.meta,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            size: 20,
+                            color: context.isDark
+                                ? AppDark.meta
+                                : AppColors.meta,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            onChanged: (v) => setState(() => _query = v),
-                            decoration: InputDecoration(
-                              hintText: 'Rechercher une transaction…',
-                              hintStyle: TextStyle(
-                                fontSize: 16,
-                                color: context.isDark
-                                    ? AppDark.meta
-                                    : AppColors.meta,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search_rounded,
-                                size: 20,
-                                color: context.isDark
-                                    ? AppDark.meta
-                                    : AppColors.meta,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
+                    const SizedBox(width: 8),
+                    Semantics(
+                      button: true,
+                      label: 'Filtrer les transactions',
+                      child: GestureDetector(
+                        onTap: _openFilterModal,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: context.isDark
+                                ? AppDark.surface
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: context.isDark
+                                  ? AppDark.border
+                                  : AppColors.border,
+                              width: 1.5,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: _openFilterModal,
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: context.isDark
-                                  ? AppDark.surface
-                                  : AppColors.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: context.isDark
-                                    ? AppDark.border
-                                    : AppColors.border,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.tune_rounded,
-                              size: 20,
-                              color: context.isDark
-                                  ? AppDark.fg2
-                                  : AppColors.fg2,
-                            ),
+                          child: Icon(
+                            Icons.tune_rounded,
+                            size: 20,
+                            color: context.isDark ? AppDark.fg2 : AppColors.fg2,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 36,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final p in [
-                            'Tous',
-                            'Ce mois',
-                            '3 derniers mois',
-                            '2026',
-                            'Personnalisé',
-                          ])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: AppChip(
-                                label: p,
-                                active: _period == p,
-                                onTap: () {
-                                  setState(() => _period = p);
-                                  if (p == 'Personnalisé') _openFilterModal();
-                                },
-                              ),
-                            ),
-                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: filtered.isEmpty
-                    ? const EmptyState(
-                        title: 'Aucune transaction',
-                        subtitle:
-                            'Essayez de modifier vos filtres ou d\'ajouter une nouvelle transaction.',
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                        children: [
-                          for (final entry in groups.entries) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: 12,
-                                bottom: 4,
-                              ),
-                              child: Text(
-                                entry.key.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
-                                  color: context.isDark
-                                      ? AppDark.muted
-                                      : AppColors.muted,
-                                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final p in [
+                        'Tous',
+                        'Ce mois',
+                        '3 derniers mois',
+                        '2026',
+                        'Personnalisé',
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: AppChip(
+                            label: p,
+                            active: _period == p,
+                            onTap: () {
+                              setState(() => _period = p);
+                              if (p == 'Personnalisé') _openFilterModal();
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => context.read<AppState>().refresh(),
+              child: filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        Padding(
+                          padding: EdgeInsets.only(top: 60),
+                          child: EmptyState(
+                            title: 'Aucune transaction',
+                            subtitle:
+                                'Essayez de modifier vos filtres ou d\'ajouter une nouvelle transaction.',
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                      children: [
+                        for (final entry in groups.entries) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12, bottom: 4),
+                            child: Text(
+                              entry.key.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                                color: context.isDark
+                                    ? AppDark.muted
+                                    : AppColors.muted,
                               ),
                             ),
-                            for (final t in entry.value)
-                              _TxnListItem(txn: t, onTap: () => _openDetail(t)),
-                          ],
+                          ),
+                          for (final t in entry.value)
+                            _TxnListItem(txn: t, onTap: () => _openDetail(t)),
                         ],
-                      ),
-              ),
-            ],
-          );
-        },
+                      ],
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -341,7 +351,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void _openDetail(Txn t) {
     final cat = Categories.byName(t.category);
     final isDark = context.isDark;
-    // ignore: unused_local_variable
     showModal(
       context,
       Column(
@@ -413,23 +422,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   small: true,
                   onPressed: () {
                     Navigator.pop(context);
-                    _openEdit(t);
+                    unawaited(context.push('/edit/${t.id}'));
                   },
                 ),
               ),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  void _openEdit(Txn t) {
-    showModal(
-      context,
-      SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: AddTransactionScreen(edit: t),
       ),
     );
   }

@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
+
+import 'package:samapoche/models/dto.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -13,18 +16,19 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Client HTTP typé vers l'API AFI (FastAPI).
+///
+/// Les réponses sont parsées en DTO (json_serializable) : la frontière
+/// réseau est typée, plus aucun `as Map<String, dynamic>` dans l'app.
 class Api {
-  static final I = Api._();
+  final http.Client _client;
+  final String baseUrl;
+  final Logger _log = Logger('Api');
 
-  static const baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
-  );
-
-  Api._();
-
-  final http.Client _client = http.Client();
   String? token;
+
+  Api({required this.baseUrl, http.Client? client})
+    : _client = client ?? http.Client();
 
   Uri _uri(String path) => Uri.parse('$baseUrl$path');
 
@@ -38,6 +42,7 @@ class Api {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    bool preserveDetail = false,
   }) async {
     final uri = _uri(path);
     http.Response res;
@@ -70,8 +75,10 @@ class Api {
       throw const ApiException(
         'Le serveur met trop de temps à répondre. Réessayez.',
       );
-    } on http.ClientException {
-      throw const ApiException('Erreur réseau. Vérifiez votre connexion.');
+    } on http.ClientException catch (e) {
+      throw ApiException(
+        'Erreur réseau. Vérifiez votre connexion. (${e.message})',
+      );
     }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -79,21 +86,24 @@ class Api {
       return jsonDecode(utf8.decode(res.bodyBytes));
     }
 
-    String message = 'Erreur serveur (${res.statusCode}). Réessayez plus tard.';
+    var message = 'Erreur serveur (${res.statusCode}). Réessayez plus tard.';
     try {
-      final data = jsonDecode(utf8.decode(res.bodyBytes));
-      final detail = data['detail'];
-      if (detail is String && detail.isNotEmpty) {
-        message = detail;
-      } else if (detail is List && detail.isNotEmpty) {
-        final first = detail.first;
-        if (first is Map && first['msg'] is String) {
+      final data =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final rawDetail = data['detail'];
+      if (rawDetail is String && rawDetail.isNotEmpty) {
+        message = rawDetail;
+      } else if (rawDetail is List && rawDetail.isNotEmpty) {
+        final first = rawDetail.first;
+        if (first is Map<String, dynamic> && first['msg'] is String) {
           message = first['msg'] as String;
         }
       }
-    } catch (_) {}
+    } on Exception catch (e) {
+      _log.warning('Réponse d\'erreur non parsable ($method $path): $e');
+    }
 
-    if (res.statusCode == 401) {
+    if (res.statusCode == 401 && !preserveDetail) {
       message = 'Session expirée. Reconnectez-vous.';
     } else if (res.statusCode == 404) {
       message = 'Ressource introuvable.';
@@ -105,7 +115,7 @@ class Api {
   }
 
   // ─── Authentification ───────────────────────────────────
-  Future<void> register({
+  Future<TokenDto> register({
     required String email,
     required String password,
     required String fullName,
@@ -113,40 +123,52 @@ class Api {
     final data = await _request(
       'POST',
       '/api/v1/auth/register',
-      body: {'email': email, 'password': password, 'full_name': fullName},
+      body: {
+        'email': email,
+        'password': password,
+        'full_name': fullName,
+      },
     );
-    _storeToken(data);
+    return TokenDto.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<void> login({required String email, required String password}) async {
+  Future<TokenDto> login({
+    required String email,
+    required String password,
+  }) async {
     final data = await _request(
       'POST',
       '/api/v1/auth/login',
       body: {'email': email, 'password': password},
+      preserveDetail: true,
     );
-    _storeToken(data);
+    return TokenDto.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> me() async =>
-      (await _request('GET', '/api/v1/auth/me')) as Map<String, dynamic>;
-
-  void _storeToken(dynamic data) {
-    if (data is Map && data['access_token'] is String) {
-      token = data['access_token'] as String;
-    }
+  Future<UserDto> me() async {
+    final data = await _request('GET', '/api/v1/auth/me');
+    return UserDto.fromJson(data as Map<String, dynamic>);
   }
 
   // ─── Catégories ──────────────────────────────────────────
-  Future<List<dynamic>> categories() async =>
-      (await _request('GET', '/api/v1/categories')) as List<dynamic>;
+  Future<List<CategoryDto>> categories() async {
+    final list = await _request('GET', '/api/v1/categories') as List<dynamic>;
+    return [
+      for (final e in list) CategoryDto.fromJson(e as Map<String, dynamic>),
+    ];
+  }
 
   // ─── Transactions ────────────────────────────────────────
-  Future<List<dynamic>> transactions() async =>
-      (await _request('GET', '/api/v1/transactions')) as List<dynamic>;
+  Future<List<TransactionDto>> transactions() async {
+    final list = await _request('GET', '/api/v1/transactions') as List<dynamic>;
+    return [
+      for (final e in list) TransactionDto.fromJson(e as Map<String, dynamic>),
+    ];
+  }
 
-  Future<Map<String, dynamic>> createTransaction({
+  Future<TransactionDto> createTransaction({
     required double amount,
-    required String type,
+    required TransactionType type,
     required int categoryId,
     String? description,
     DateTime? date,
@@ -156,17 +178,17 @@ class Api {
       '/api/v1/transactions',
       body: {
         'amount': amount,
-        'type': type,
+        'type': type.name,
         'category_id': categoryId,
         if (description != null && description.isNotEmpty)
           'description': description,
         if (date != null) 'transaction_date': date.toUtc().toIso8601String(),
       },
     );
-    return data as Map<String, dynamic>;
+    return TransactionDto.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> updateTransaction(
+  Future<TransactionDto> updateTransaction(
     int id, {
     required double amount,
     required int categoryId,
@@ -182,14 +204,18 @@ class Api {
           'description': description,
       },
     );
-    return data as Map<String, dynamic>;
+    return TransactionDto.fromJson(data as Map<String, dynamic>);
   }
 
   // ─── Budgets ─────────────────────────────────────────────
-  Future<List<dynamic>> budgets() async =>
-      (await _request('GET', '/api/v1/budgets')) as List<dynamic>;
+  Future<List<BudgetStatusDto>> budgets() async {
+    final list = await _request('GET', '/api/v1/budgets') as List<dynamic>;
+    return [
+      for (final e in list) BudgetStatusDto.fromJson(e as Map<String, dynamic>),
+    ];
+  }
 
-  Future<Map<String, dynamic>> createBudget({
+  Future<BudgetResponseDto> createBudget({
     required int categoryId,
     required double amount,
     required int month,
@@ -205,10 +231,10 @@ class Api {
         'year': year,
       },
     );
-    return data as Map<String, dynamic>;
+    return BudgetResponseDto.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> updateBudget(
+  Future<BudgetResponseDto> updateBudget(
     int id, {
     required double amount,
   }) async {
@@ -217,12 +243,17 @@ class Api {
       '/api/v1/budgets/$id',
       body: {'amount': amount},
     );
-    return data as Map<String, dynamic>;
+    return BudgetResponseDto.fromJson(data as Map<String, dynamic>);
   }
 
   // ─── Notifications ───────────────────────────────────────
-  Future<List<dynamic>> notifications() async =>
-      (await _request('GET', '/api/v1/notifications')) as List<dynamic>;
+  Future<List<NotificationDto>> notifications() async {
+    final list =
+        await _request('GET', '/api/v1/notifications') as List<dynamic>;
+    return [
+      for (final e in list) NotificationDto.fromJson(e as Map<String, dynamic>),
+    ];
+  }
 
   Future<void> markNotificationRead(int id) async {
     await _request('PUT', '/api/v1/notifications/$id/read');
@@ -233,13 +264,12 @@ class Api {
   }
 
   // ─── Assistant IA ────────────────────────────────────────
-  Future<String> chat(String message) async {
+  Future<ChatReplyDto> chat(String message) async {
     final data = await _request(
       'POST',
       '/api/v1/ai/chat',
       body: {'message': message},
     );
-    if (data is Map && data['reply'] is String) return data['reply'] as String;
-    return 'Je n\'ai pas compris votre demande. Réessayez.';
+    return ChatReplyDto.fromJson(data as Map<String, dynamic>);
   }
 }

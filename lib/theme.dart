@@ -223,7 +223,7 @@ class AppTheme {
           if (states.contains(WidgetState.selected)) return accentSoft;
           return border;
         }),
-        trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith(

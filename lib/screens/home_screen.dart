@@ -1,56 +1,66 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import 'package:samapoche/models/models.dart';
-import 'package:samapoche/screens/root_shell.dart';
+import 'package:samapoche/router.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
 import 'package:samapoche/utils/format.dart';
 import 'package:samapoche/widgets/widgets.dart';
 
 class HomeScreen extends StatelessWidget {
-  final VoidCallback onOpenNotifications;
-  final void Function(RouteName)? onGo;
-  const HomeScreen({super.key, required this.onOpenNotifications, this.onGo});
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: ListenableBuilder(
-        listenable: AppState.I,
-        builder: (context, _) {
-          final s = AppState.I;
-          final isDark = context.isDark;
-          final muted = isDark ? AppDark.muted : AppColors.muted;
-          final user = s.user!;
-          final now = DateTime.now();
+    final s = context.watch<AppState>();
+    final isDark = context.isDark;
+    final muted = isDark ? AppDark.muted : AppColors.muted;
+    final user = s.user;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bonjour',
-                          style: TextStyle(fontSize: 14, color: muted),
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    final now = DateTime.now();
+    final loading = s.syncing && s.transactions.isEmpty;
+
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: () => context.read<AppState>().refresh(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bonjour',
+                        style: TextStyle(fontSize: 14, color: muted),
+                      ),
+                      Text(
+                        user.firstName,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Inter',
                         ),
-                        Text(
-                          user.firstName,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  GestureDetector(
-                    onTap: onOpenNotifications,
+                ),
+                Semantics(
+                  button: true,
+                  label: 'Notifications',
+                  child: GestureDetector(
+                    onTap: () => context.push(Routes.notifications),
                     child: Container(
                       width: 40,
                       height: 40,
@@ -83,10 +93,22 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
 
+            if (s.lastSyncError != null) ...[
+              _SyncErrorBanner(
+                message: s.lastSyncError!,
+                onRetry: () => context.read<AppState>().refresh(),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            if (loading)
+              const _HomeSkeleton()
+            else ...[
               // Balance card
               Container(
                 padding: const EdgeInsets.all(24),
@@ -307,7 +329,7 @@ class HomeScreen extends StatelessWidget {
                     SectionTitle(
                       'Répartition des dépenses',
                       link: 'Voir tout',
-                      onLink: () => _goTransactions(context),
+                      onLink: () => context.go(Routes.transactions),
                     ),
                     const SizedBox(height: 16),
                     const _DonutChart(),
@@ -316,7 +338,7 @@ class HomeScreen extends StatelessWidget {
               ),
 
               // Recent transactions
-              SectionTitle('Transactions récentes'),
+              const SectionTitle('Transactions récentes'),
               const SizedBox(height: 8),
               ...s.transactions
                   .take(5)
@@ -324,30 +346,18 @@ class HomeScreen extends StatelessWidget {
                     (t) => _TxnRow(
                       txn: t,
                       now: now,
-                      onTap: () => _goTransactions(context),
+                      onTap: () => context.go(Routes.transactions),
                     ),
                   ),
             ],
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 
-  void _goTransactions(BuildContext context) {
-    if (onGo != null) {
-      onGo!(RouteName.transactions);
-    } else {
-      showToast(
-        context,
-        'Voir toutes les transactions dans l\'onglet Transactions',
-        ToastType.info,
-      );
-    }
-  }
-
   void _showBudgetModal(BuildContext context) {
-    final s = AppState.I;
+    final s = context.read<AppState>();
     showModal(
       context,
       StatefulBuilder(
@@ -464,6 +474,48 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _SyncErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _SyncErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = context.isDark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppDark.dangerSoft : AppColors.dangerSoft,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: AppColors.danger,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppDark.fg : AppColors.fg,
+                height: 1.3,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            child: const Text('Réessayer'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BudgetStat extends StatelessWidget {
   final String label;
   final String value;
@@ -494,12 +546,40 @@ class _BudgetStat extends StatelessWidget {
   }
 }
 
+/// Squelette de chargement pendant la première synchronisation.
+class _HomeSkeleton extends StatelessWidget {
+  const _HomeSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget box(double h, {double? w, double radius = 12}) => Container(
+      height: h,
+      width: w,
+      decoration: BoxDecoration(
+        color: context.isDark ? AppDark.surface : const Color(0xFFE5E5EA),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        box(160, radius: 20),
+        const SizedBox(height: 20),
+        box(64, radius: 12),
+        const SizedBox(height: 20),
+        box(160, radius: 20),
+      ],
+    );
+  }
+}
+
 class _DonutChart extends StatelessWidget {
   const _DonutChart();
 
   @override
   Widget build(BuildContext context) {
-    final s = AppState.I;
+    final s = context.watch<AppState>();
     final data = s.donutData;
     final muted = context.isDark ? AppDark.muted : AppColors.muted;
     final fg = context.isDark ? AppDark.fg : AppColors.fg;
@@ -519,7 +599,9 @@ class _DonutChart extends StatelessWidget {
         SizedBox(
           width: 120,
           height: 120,
-          child: CustomPaint(painter: _DonutPainter(data)),
+          child: CustomPaint(
+            painter: _DonutPainter(data),
+          ),
         ),
         const SizedBox(width: 24),
         Expanded(
@@ -561,7 +643,7 @@ class _DonutChart extends StatelessWidget {
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.chartOther,
                           shape: BoxShape.circle,
                         ),
@@ -596,7 +678,7 @@ class _DonutPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2 - 10;
-    final stroke = 20.0;
+    const stroke = 20.0;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     final bgPaint = Paint()

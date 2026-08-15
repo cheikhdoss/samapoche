@@ -32,7 +32,7 @@ String formatMontant(int v) {
   final sign = v < 0 ? '−' : '';
   final s = v.abs().toString();
   final b = StringBuffer();
-  for (int i = 0; i < s.length; i++) {
+  for (var i = 0; i < s.length; i++) {
     if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
     b.write(s[i]);
   }
