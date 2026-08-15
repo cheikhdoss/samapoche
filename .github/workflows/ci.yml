@@ -93,7 +93,7 @@ jobs:
 
   # ── Étape 4 · Quality Gate couverture (seuil échelonné) ────────────────────
   quality-gate:
-    name: 4 · Quality Gate (≥ ${{ env.COVERAGE_THRESHOLD }} %)
+    name: 4 · Quality Gate couverture
     needs: [tests, tests-integration]
     runs-on: ubuntu-latest
     steps:
