@@ -3,6 +3,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:logging/logging.dart';
 
+import 'package:samapoche/env.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Configuration de l'observabilité.
@@ -15,7 +16,10 @@ class Observability {
 
   static bool _initialized = false;
 
-  static Future<void> init({List<Integration>? integrations}) async {
+  static Future<void> init({
+    List<Integration>? integrations,
+    String? environment,
+  }) async {
     setupGlobalLogging();
     if (!enabled) {
       Logger('Observability').info('Sentry désactivé (aucun SENTRY_DSN)');
@@ -26,12 +30,13 @@ class Observability {
         options
           ..dsn = _dsn
           ..tracesSampleRate = 0.1;
+        if (environment != null) options.environment = environment;
         integrations?.forEach(options.addIntegration);
       },
       appRunner: () {},
     );
     _initialized = true;
-    Logger('Observability').info('Sentry initialisé');
+    Logger('Observability').info('Sentry initialisé ($environment)');
   }
 
   static void capture(Object error, StackTrace stackTrace) {
@@ -52,12 +57,6 @@ void setupGlobalLogging() {
 
 /// Logger simple avec capture Sentry intégrée.
 Logger buildLogger(String name) => Logger(name);
-
-/// Configuration globale (flavors).
-class AppEnv {
-  static const flavor = String.fromEnvironment('FLAVOR', defaultValue: 'dev');
-  static const debug = bool.fromEnvironment('APP_DEBUG', defaultValue: true);
-}
 
 /// Handler de dernier recours (erreurs non rattrapées).
 void setupGlobalErrorHandlers() {

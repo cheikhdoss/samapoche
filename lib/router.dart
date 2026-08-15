@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import 'package:samapoche/env.dart';
 import 'package:samapoche/screens/add_transaction_screen.dart';
 import 'package:samapoche/screens/assistant_screen.dart';
 import 'package:samapoche/screens/home_screen.dart';
@@ -126,8 +128,19 @@ class _AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final config = context.watch<AppConfig>();
     return Scaffold(
-      body: shell,
+      body: Stack(
+        children: [
+          shell,
+          if (!config.isProd)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SafeArea(child: _EnvBadge(config: config)),
+            ),
+        ],
+      ),
       floatingActionButton: shell.currentIndex == 0
           ? FloatingActionButton(
               onPressed: () => context.push(Routes.add),
@@ -143,6 +156,41 @@ class _AppShell extends StatelessWidget {
         current: shell.currentIndex,
         onTap: (i) =>
             shell.goBranch(i, initialLocation: i == shell.currentIndex),
+      ),
+    );
+  }
+}
+
+/// Diagnostic d'environnement visible sur les flavors hors production.
+class _EnvBadge extends StatelessWidget {
+  final AppConfig config;
+  const _EnvBadge({required this.config});
+
+  @override
+  Widget build(BuildContext context) {
+    final dev = config.flavor == Flavor.dev;
+    final background = dev ? const Color(0xFFC62828) : const Color(0xFFEF6C00);
+    return Tooltip(
+      message: '${config.flavor.label} — ${config.apiBaseUrl}',
+      child: IgnorePointer(
+        child: Container(
+          margin: const EdgeInsets.all(6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            config.flavor == Flavor.dev ? 'DEV' : 'STAGING',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+              fontFamily: 'Inter',
+            ),
+          ),
+        ),
       ),
     );
   }

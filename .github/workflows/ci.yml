@@ -1,13 +1,27 @@
-name: CI — Qualité, tests, sécurité et build
+name: CI Mobile — Qualité · Tests · Sécurité · Build
+
+# Pipeline mobile (schéma AFI) :
+#   1. Analyse statique (dart format + flutter analyze)
+#   2. Tests unitaires/widgets (couverture) + tests d'intégration (E2E hermétique)
+#   3. SAST : SonarQube (portique côté serveur) + MobSF (scan de l'APK)
+#   4. Quality Gate : couverture de lignes ≥ seuil (gradué, relire partie suivante)
+#   5. Build Android signé (APK + AAB, flavor staging)
 on:
   pull_request:
     branches: [main, dev]
   push:
     branches: [main, dev]
 
+env:
+  # Quality Gate couverture — échelonné : le seuil monte au fil des PR
+  # (atteindre un palier, puis relever). Progression : 40 → 50 → 60 → 70 → 80.
+  COVERAGE_THRESHOLD: 40
+  LC_ALL: C.UTF-8
+
 jobs:
+  # ── Étape 1 · Analyse statique ─────────────────────────────────────────────
   analyse:
-    name: Analyse statique (flutter analyze + dart format)
+    name: 1 · Analyse (format + lint)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,11 +30,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - run: dart format --set-exit-if-changed lib test integration_test test_driver
       - run: flutter analyze
-      - run: dart format --set-exit-if-changed lib test
 
+  # ── Étape 2a · Tests unitaires + widgets (couverture) ───────────────────────
   tests:
-    name: Tests unitaires et widgets (couverture)
+    name: 2a · Tests unitaires + widgets
+    needs: analyse
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +51,10 @@ jobs:
           name: coverage-lcov
           path: coverage/lcov.info
 
+  # ── Étape 2b · Tests d'intégration (E2E hermétique, aucun backend requis) ──
   tests-integration:
-    name: Tests d'intégration (parcours complets)
+    name: 2b · Tests d'intégration E2E
+    needs: analyse
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +66,7 @@ jobs:
       - run: flutter pub get
       - name: Lancer chromedriver
         run: chromedriver --port=4444 &
-      - name: Exécuter les parcours E2E
+      - name: E2E hermétique (faux backend AFI injecté)
         run: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart -d web-server --web-port=8080
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -56,8 +74,51 @@ jobs:
           name: captures-echec-e2e
           path: screenshots/
 
+  # ── Étape 3a · SAST SonarQube (skip si secret absent) ───────────────────────
+  sonarqube:
+    name: 3a · SAST SonarQube
+    needs: tests
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: SonarSource/sonarqube-scan-action@v5
+        if: ${{ env.SONAR_TOKEN != '' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Étape 4 · Quality Gate couverture (seuil échelonné) ────────────────────
+  quality-gate:
+    name: 4 · Quality Gate (≥ ${{ env.COVERAGE_THRESHOLD }} %)
+    needs: [tests, tests-integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage
+      - name: Vérifier la porte de qualité
+        shell: bash
+        run: |
+          sudo apt-get update >/dev/null 2>&1
+          sudo apt-get install -y lcov >/dev/null 2>&1
+          cov="$(lcov --summary coverage/lcov.info | awk '/lines/ {gsub(/[%:]/, "", $2); print $2}')"
+          echo "Couverture de lignes : ${cov}% (seuil : ${COVERAGE_THRESHOLD}%)"
+          if awk "BEGIN { exit !($cov < ${COVERAGE_THRESHOLD}) }"; then
+            echo "::error::Porte de qualité rejetée : ${cov}% < ${COVERAGE_THRESHOLD}% — écrire plus de tests, puis relever COVERAGE_THRESHOLD."
+            exit 1
+          fi
+          echo "::notice::Porte de qualité franchie : ${cov}% ≥ ${COVERAGE_THRESHOLD}%"
+
+  # ── Étape 5 · Build Android signé (flavor staging) ─────────────────────────
   build-android:
-    name: Build Android signé (APK + AAB)
+    name: 5 · Build APK + AAB signés (staging)
+    needs: quality-gate
     runs-on: ubuntu-latest
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -78,45 +139,33 @@ jobs:
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
-      - run: flutter build apk --release
-      - run: flutter build appbundle --release
+      - name: Build APK (staging)
+        run: flutter build apk --release --flavor staging -t lib/main_staging.dart
+      - name: Build AAB (staging)
+        run: flutter build appbundle --release --flavor staging -t lib/main_staging.dart
       - uses: actions/upload-artifact@v4
         with:
-          name: apk-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: apk-staging
+          path: build/app/outputs/flutter-apk/app-staging-release.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: aab-release
-          path: build/app/outputs/bundle/release/app-release.aab
+          name: aab-staging
+          path: build/app/outputs/bundle/stagingRelease/app-staging-release.aab
 
-  sonarqube:
-    name: SAST SonarQube (porte de qualité ≥ 80 %)
-    runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: SonarSource/sonarqube-scan-action@v5
-        if: ${{ env.SONAR_TOKEN != '' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+  # ── Étape 3b · SAST mobile MobSF (scan de l'APK, skip si secret absent) ─────
   mobsf:
-    name: SAST mobile MobSF (scan de l'APK)
-    runs-on: ubuntu-latest
+    name: 3b · SAST mobile MobSF
     needs: build-android
+    runs-on: ubuntu-latest
     env:
       MOBSF_API_KEY: ${{ secrets.MOBSF_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: apk-release
+          name: apk-staging
       - uses: MobSF/mobsf-scan-github-action@v2
         if: ${{ env.MOBSF_API_KEY != '' }}
         with:
-          target: app-release.apk
+          target: app-staging-release.apk
           upload_sarif: true

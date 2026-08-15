@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:samapoche/env.dart';
 import 'package:samapoche/models/models.dart';
 import 'package:samapoche/router.dart';
 import 'package:samapoche/state/app_state.dart';
@@ -24,6 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
+    final config = context.read<AppConfig>();
     final user = s.user;
     final isDark = context.isDark;
     final muted = isDark ? AppDark.muted : AppColors.muted;
@@ -129,6 +131,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'SamaPoche v1.0.0 — Gestion financière intelligente © 2026',
             ),
             divider: false,
+          ),
+          ProfileRow(
+            icon: Icons.cloud_outlined,
+            label: 'Environnement',
+            value: config.flavor.label,
+            onTap: () => _toastInfo(
+              '${config.flavor.label}\n${config.apiBaseUrl}',
+            ),
           ),
           const Divider(),
           ProfileRow(
