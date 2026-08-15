@@ -4,7 +4,7 @@ name: CI Mobile — Qualité · Tests · Sécurité · Build
 #   1. Analyse statique (dart format + flutter analyze)
 #   2. Tests unitaires/widgets (couverture) + tests d'intégration (E2E hermétique)
 #   3. SAST : SonarQube (portique côté serveur) + MobSF (scan de l'APK)
-#   4. Quality Gate : couverture de lignes ≥ seuil (gradué, relire partie suivante)
+#   4. Quality Gate : couverture de lignes ≥ seuil (échelonné)
 #   5. Build Android signé (APK + AAB, flavor staging)
 on:
   pull_request:
@@ -27,7 +27,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Épinglée sur le SDK de dev local (flutter --version) pour
+          # reproductibilité : mêmes lints, même formatteur en CI et en local.
+          version: 3.44.7
           cache: true
       - run: flutter pub get
       - run: dart format --set-exit-if-changed lib test integration_test test_driver
@@ -42,7 +44,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          version: 3.44.7
           cache: true
       - run: flutter pub get
       - run: flutter test --coverage
@@ -60,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          version: 3.44.7
           cache: true
       - uses: nanasess/setup-chromedriver@v2
       - run: flutter pub get
@@ -126,7 +128,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          version: 3.44.7
           cache: true
       - run: flutter pub get
       - name: Reconstruire le keystore
