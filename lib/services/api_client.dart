@@ -123,11 +123,7 @@ class Api {
     final data = await _request(
       'POST',
       '/api/v1/auth/register',
-      body: {
-        'email': email,
-        'password': password,
-        'full_name': fullName,
-      },
+      body: {'email': email, 'password': password, 'full_name': fullName},
     );
     return TokenDto.fromJson(data as Map<String, dynamic>);
   }

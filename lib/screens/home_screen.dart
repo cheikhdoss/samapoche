@@ -506,10 +506,7 @@ class _SyncErrorBanner extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(
-            onPressed: onRetry,
-            child: const Text('Réessayer'),
-          ),
+          TextButton(onPressed: onRetry, child: const Text('Réessayer')),
         ],
       ),
     );
@@ -599,9 +596,7 @@ class _DonutChart extends StatelessWidget {
         SizedBox(
           width: 120,
           height: 120,
-          child: CustomPaint(
-            painter: _DonutPainter(data),
-          ),
+          child: CustomPaint(painter: _DonutPainter(data)),
         ),
         const SizedBox(width: 24),
         Expanded(

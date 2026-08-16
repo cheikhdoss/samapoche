@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:samapoche/main.dart';
+import 'package:samapoche/testing/fake_backend.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../helpers.dart';
 
 void main() {
   late TestContext ctx;

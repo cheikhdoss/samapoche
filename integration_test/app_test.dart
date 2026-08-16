@@ -3,9 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:samapoche/env.dart';
 import 'package:samapoche/main.dart' as app;
+import 'package:samapoche/testing/fake_backend.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../test/helpers.dart';
 
 /// Parcours E2E complet : inscription → ajout de transaction → liste.
 ///

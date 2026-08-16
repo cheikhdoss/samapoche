@@ -1,8 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:samapoche/models/models.dart';
+import 'package:samapoche/testing/fake_backend.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../helpers.dart';
 
 void main() {
   setUpAll(() {

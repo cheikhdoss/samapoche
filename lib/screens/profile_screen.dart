@@ -136,9 +136,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.cloud_outlined,
             label: 'Environnement',
             value: config.flavor.label,
-            onTap: () => _toastInfo(
-              '${config.flavor.label}\n${config.apiBaseUrl}',
-            ),
+            onTap: () =>
+                _toastInfo('${config.flavor.label}\n${config.apiBaseUrl}'),
           ),
           const Divider(),
           ProfileRow(

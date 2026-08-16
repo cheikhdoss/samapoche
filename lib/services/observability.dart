@@ -25,16 +25,13 @@ class Observability {
       Logger('Observability').info('Sentry désactivé (aucun SENTRY_DSN)');
       return;
     }
-    await SentryFlutter.init(
-      (options) {
-        options
-          ..dsn = _dsn
-          ..tracesSampleRate = 0.1;
-        if (environment != null) options.environment = environment;
-        integrations?.forEach(options.addIntegration);
-      },
-      appRunner: () {},
-    );
+    await SentryFlutter.init((options) {
+      options
+        ..dsn = _dsn
+        ..tracesSampleRate = 0.1;
+      if (environment != null) options.environment = environment;
+      integrations?.forEach(options.addIntegration);
+    }, appRunner: () {});
     _initialized = true;
     Logger('Observability').info('Sentry initialisé ($environment)');
   }
