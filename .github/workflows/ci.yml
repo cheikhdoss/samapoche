@@ -25,7 +25,7 @@ jobs:
     name: 1 · Analyse (format + lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           # Épinglée sur le SDK de dev local (flutter --version) pour
@@ -42,7 +42,7 @@ jobs:
     needs: analyse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.44.7
@@ -60,7 +60,7 @@ jobs:
     needs: analyse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.44.7
@@ -85,7 +85,7 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: SonarSource/sonarqube-scan-action@v5
@@ -100,7 +100,7 @@ jobs:
     needs: [tests, tests-integration]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v5
         with:
           name: coverage-lcov
@@ -124,7 +124,7 @@ jobs:
     needs: quality-gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.44.7
@@ -163,7 +163,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
