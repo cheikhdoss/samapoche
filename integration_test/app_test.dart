@@ -15,6 +15,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///  - **Backend réel** : fournir l'URL et lancer sur un device/émulateur :
 ///      flutter test integration_test -d `device` \
 ///        --dart-define=API_BASE_URL=http://10.0.2.2:8000
+/// Bouton en bas de formulaire : scrolling d'abord (viewport headless CI).
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+  await tester.tap(finder);
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -46,11 +53,10 @@ void main() {
       await tester.enterText(find.byType(TextField).at(3), '+228 90000000');
       await tester.enterText(find.byType(TextField).at(4), 'Test1234!');
       await tester.enterText(find.byType(TextField).at(5), 'Test1234!');
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-      await tester.tap(find.textContaining("J'accepte les"));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text("S'inscrire"));
+      await tapVisible(tester, find.textContaining("J'accepte les"));
+      await tapVisible(tester, find.text("S'inscrire"));
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // Écran d'accueil (synchronisé avec le backend)
@@ -62,7 +68,8 @@ void main() {
 
       await tester.enterText(find.byType(TextField).at(0), '5000');
       await tester.enterText(find.byType(TextField).at(1), 'Test E2E');
-      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+      await tapVisible(tester, find.text('Enregistrer'));
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // La transaction apparaît dans l'onglet Transactions
