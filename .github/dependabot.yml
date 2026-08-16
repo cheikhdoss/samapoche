@@ -12,6 +12,12 @@ updates:
     labels:
       - dependencies
       - dart
+    ignore:
+      # build_runner 2.16+ exige analyzer >=13.3.0 -> meta ^1.18.3, or le SDK
+      # Flutter 3.44.7 épingle meta 1.18.0 : résolution de version impossible.
+      # À réévaluer quand le SDK Flutter sera monté.
+      - dependency-name: "build_runner"
+        versions: [">=2.16.0"]
 
   # Actions GitHub utilisées par les workflows.
   - package-ecosystem: github-actions
