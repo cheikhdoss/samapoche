@@ -24,12 +24,12 @@ jobs:
     name: 1 · Analyse (format + lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           # Épinglée sur le SDK de dev local (flutter --version) pour
           # reproductibilité : mêmes lints, même formatteur en CI et en local.
-          version: 3.44.7
+          flutter-version: 3.44.7
           cache: true
       - run: flutter pub get
       - run: dart format --set-exit-if-changed lib test integration_test test_driver
@@ -41,14 +41,14 @@ jobs:
     needs: analyse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          version: 3.44.7
+          flutter-version: 3.44.7
           cache: true
       - run: flutter pub get
       - run: flutter test --coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: coverage-lcov
           path: coverage/lcov.info
@@ -59,10 +59,10 @@ jobs:
     needs: analyse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          version: 3.44.7
+          flutter-version: 3.44.7
           cache: true
       - uses: nanasess/setup-chromedriver@v2
       - run: flutter pub get
@@ -70,7 +70,7 @@ jobs:
         run: chromedriver --port=4444 &
       - name: E2E hermétique (faux backend AFI injecté)
         run: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart -d web-server --web-port=8080
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: captures-echec-e2e
@@ -84,7 +84,7 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: SonarSource/sonarqube-scan-action@v5
@@ -99,8 +99,8 @@ jobs:
     needs: [tests, tests-integration]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           name: coverage-lcov
           path: coverage
@@ -125,10 +125,10 @@ jobs:
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          version: 3.44.7
+          flutter-version: 3.44.7
           cache: true
       - run: flutter pub get
       - name: Reconstruire le keystore
@@ -145,11 +145,11 @@ jobs:
         run: flutter build apk --release --flavor staging -t lib/main_staging.dart
       - name: Build AAB (staging)
         run: flutter build appbundle --release --flavor staging -t lib/main_staging.dart
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: apk-staging
           path: build/app/outputs/flutter-apk/app-staging-release.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: aab-staging
           path: build/app/outputs/bundle/stagingRelease/app-staging-release.aab
@@ -162,8 +162,8 @@ jobs:
     env:
       MOBSF_API_KEY: ${{ secrets.MOBSF_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           name: apk-staging
       - uses: MobSF/mobsf-scan-github-action@v2
