@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:samapoche/models/models.dart';
-import 'package:samapoche/screens/root_shell.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import 'package:samapoche/domain/models.dart';
+import 'package:samapoche/env.dart';
+import 'package:samapoche/router.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
 import 'package:samapoche/utils/format.dart';
 import 'package:samapoche/widgets/widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final void Function(RouteName) go;
-  const ProfileScreen({super.key, required this.go});
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -19,166 +24,216 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final s = AppState.I;
-    final user = s.user!;
+    final s = context.watch<AppState>();
+    final config = context.read<AppConfig>();
+    final user = s.user;
     final isDark = context.isDark;
     final muted = isDark ? AppDark.muted : AppColors.muted;
     final borderSoft = isDark ? AppDark.borderSoft : AppColors.borderSoft;
     final fg = isDark ? AppDark.fg : AppColors.fg;
     final accent = isDark ? AppDark.accent : AppColors.accent;
-    final danger = AppColors.danger;
+    const danger = AppColors.danger;
+
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
 
     return SafeArea(
-      child: ListenableBuilder(
-        listenable: AppState.I,
-        builder: (context, _) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+        children: [
+          // Header
+          Column(
             children: [
-              // Header
-              Column(
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(color: isDark ? AppDark.accentSoft : AppColors.accentSoft, shape: BoxShape.circle),
-                    alignment: Alignment.center,
-                    child: Text(
-                      user.initials,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        color: accent,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: isDark ? AppDark.accentSoft : AppColors.accentSoft,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  user.initials,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                    fontFamily: 'Inter',
                   ),
-                  const SizedBox(height: 12),
-                  Text(user.firstName,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
-                  const SizedBox(height: 2),
-                  Text(user.email, style: TextStyle(fontSize: 14, color: muted)),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: () => _editProfile(user),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: borderSoft),
-                      ),
-                      child: Text('Modifier le profil',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: fg)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const Divider(),
-              ProfileRow(
-                icon: Icons.account_balance_wallet_outlined,
-                label: 'Budget mensuel',
-                value: formatFCFA(s.budget),
-                onTap: () => _editBudget(),
-              ),
-              ProfileRow(
-                icon: Icons.person_outline_rounded,
-                label: 'Modifier le profil',
-                onTap: () => _editProfile(user),
-              ),
-              ProfileRow(
-                icon: Icons.lock_outline_rounded,
-                label: 'Changer le mot de passe',
-                onTap: () => _toastInfo('Un email de réinitialisation sera envoyé à ${user.email}'),
-              ),
-              ProfileRow(
-                icon: Icons.tune_rounded,
-                label: 'Préférences',
-                onTap: () => _openPreferences(),
-              ),
-              ProfileRow(
-                icon: Icons.info_outline_rounded,
-                label: 'À propos',
-                value: 'v1.0.0',
-                onTap: () => _toastInfo('SamaPoche v1.0.0 — Gestion financière intelligente © 2026'),
-                divider: false,
-              ),
-              const Divider(),
-              ProfileRow(
-                icon: Icons.dark_mode_outlined,
-                label: 'Mode sombre',
-                trailing: Switch(
-                  value: s.darkMode,
-                  onChanged: (v) => AppState.I.setDarkMode(v),
                 ),
               ),
-              ProfileRow(
-                icon: Icons.health_and_safety_outlined,
-                label: 'Sécurité',
-                onTap: () => _toastInfo('🔐 2FA désactivée · Email vérifié · Dernière connexion : aujourd\'hui'),
+              const SizedBox(height: 12),
+              Text(
+                user.firstName,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Inter',
+                ),
               ),
-              ProfileRow(
-                icon: Icons.support_agent_rounded,
-                label: 'Aide & Support',
-                onTap: () => _toastInfo('Email: support@samapoche.com | WhatsApp: +221 77 123 45 67'),
-              ),
-              ProfileRow(
-                icon: Icons.description_outlined,
-                label: 'Conditions & Politique',
-                onTap: () => _toastInfo('Conditions d\'utilisation & Politique de confidentialité — SamaPoche © 2026'),
-                divider: false,
-              ),
-              const Divider(),
-              const SizedBox(height: 8),
+              const SizedBox(height: 2),
+              Text(user.email, style: TextStyle(fontSize: 14, color: muted)),
+              const SizedBox(height: 16),
               GestureDetector(
-                onTap: () async {
-                  await AppState.I.logout();
-                  if (!mounted) return;
-                  widget.go(RouteName.welcome);
-                },
+                onTap: () => _editProfile(user),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppDark.dangerSoft : AppColors.dangerSoft,
-                    borderRadius: BorderRadius.circular(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.logout_rounded, size: 20, color: danger),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Déconnexion',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: danger),
-                      ),
-                    ],
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: borderSoft),
+                  ),
+                  child: Text(
+                    'Modifier le profil',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                    ),
                   ),
                 ),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          ProfileRow(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Budget mensuel',
+            value: formatFCFA(s.budget),
+            onTap: _editBudget,
+          ),
+          ProfileRow(
+            icon: Icons.person_outline_rounded,
+            label: 'Modifier le profil',
+            onTap: () => _editProfile(user),
+          ),
+          ProfileRow(
+            icon: Icons.lock_outline_rounded,
+            label: 'Changer le mot de passe',
+            onTap: () => _toastInfo(
+              'Un email de réinitialisation sera envoyé à ${user.email}',
+            ),
+          ),
+          ProfileRow(
+            icon: Icons.tune_rounded,
+            label: 'Préférences',
+            onTap: _openPreferences,
+          ),
+          ProfileRow(
+            icon: Icons.info_outline_rounded,
+            label: 'À propos',
+            value: 'v1.0.0',
+            onTap: () => _toastInfo(
+              'SamaPoche v1.0.0 — Gestion financière intelligente © 2026',
+            ),
+            divider: false,
+          ),
+          ProfileRow(
+            icon: Icons.cloud_outlined,
+            label: 'Environnement',
+            value: config.flavor.label,
+            onTap: () =>
+                _toastInfo('${config.flavor.label}\n${config.apiBaseUrl}'),
+          ),
+          const Divider(),
+          ProfileRow(
+            icon: Icons.dark_mode_outlined,
+            label: 'Mode sombre',
+            trailing: Switch(
+              value: s.darkMode,
+              onChanged: (v) =>
+                  unawaited(context.read<AppState>().setDarkMode(value: v)),
+            ),
+          ),
+          ProfileRow(
+            icon: Icons.health_and_safety_outlined,
+            label: 'Sécurité',
+            onTap: () => _toastInfo(
+              '🔐 2FA désactivée · Email vérifié · Dernière connexion : aujourd\'hui',
+            ),
+          ),
+          ProfileRow(
+            icon: Icons.support_agent_rounded,
+            label: 'Aide & Support',
+            onTap: () => _toastInfo(
+              'Email: support@samapoche.com | WhatsApp: +221 77 123 45 67',
+            ),
+          ),
+          ProfileRow(
+            icon: Icons.description_outlined,
+            label: 'Conditions & Politique',
+            onTap: () => _toastInfo(
+              'Conditions d\'utilisation & Politique de confidentialité — SamaPoche © 2026',
+            ),
+            divider: false,
+          ),
+          const Divider(),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () async {
+              await context.read<AppState>().logout();
+              if (!context.mounted) return;
+              context.go(Routes.welcome);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: isDark ? AppDark.dangerSoft : AppColors.dangerSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout_rounded, size: 20, color: danger),
+                  SizedBox(width: 8),
+                  Text(
+                    'Déconnexion',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: danger,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _editBudget() {
-    final controller = TextEditingController(text: formatMontant(AppState.I.budget));
+    final controller = TextEditingController(
+      text: formatMontant(context.read<AppState>().budget),
+    );
     showModal(
       context,
       Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Budget mensuel',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.isDark ? AppDark.fg : AppColors.fg)),
+          Text(
+            'Budget mensuel',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: context.isDark ? AppDark.fg : AppColors.fg,
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: controller,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               hintText: '150 000',
-              hintStyle: TextStyle(color: context.isDark ? AppDark.meta : AppColors.meta),
+              hintStyle: TextStyle(
+                color: context.isDark ? AppDark.meta : AppColors.meta,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -192,13 +247,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 showToast(context, 'Montant invalide', ToastType.error);
                 return;
               }
-              await AppState.I.setBudget(v);
-              // ignore: use_build_context_synchronously
-              if (!context.mounted) return;
-              // ignore: use_build_context_synchronously
+              final err = await context.read<AppState>().setBudget(v);
+              if (!mounted) return;
               Navigator.pop(context);
-              // ignore: use_build_context_synchronously
-              showToast(context, 'Budget mis à jour', ToastType.success);
+              showToast(
+                context,
+                err ?? 'Budget mis à jour',
+                err == null ? ToastType.success : ToastType.error,
+              );
             },
           ),
         ],
@@ -221,7 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ])
             StatefulBuilder(
               builder: (context, setModal) {
-                final state = AppState.I;
+                final state = context.read<AppState>();
                 bool value;
                 switch (key) {
                   case 'push':
@@ -242,13 +298,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 return CheckboxListTile(
                   value: value,
                   onChanged: (v) {
-                    AppState.I.setPref(key, v ?? false);
+                    unawaited(state.setPref(key, value: v ?? false));
                     setModal(() {});
                   },
-                  title: Text(label,
-                      style: TextStyle(fontSize: 16, color: context.isDark ? AppDark.fg : AppColors.fg)),
+                  title: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: context.isDark ? AppDark.fg : AppColors.fg,
+                    ),
+                  ),
                   controlAffinity: ListTileControlAffinity.trailing,
-                  activeColor: AppState.I.darkMode ? AppDark.accent : AppColors.accent,
+                  activeColor: context.isDark
+                      ? AppDark.accent
+                      : AppColors.accent,
                   contentPadding: EdgeInsets.zero,
                 );
               },
@@ -256,7 +319,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
-            child: AppButton(label: 'Fermer', small: true, onPressed: () => Navigator.pop(context)),
+            child: AppButton(
+              label: 'Fermer',
+              small: true,
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
         ],
       ),
@@ -278,30 +345,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Modifier le profil',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.isDark ? AppDark.fg : AppColors.fg)),
+            Text(
+              'Modifier le profil',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: context.isDark ? AppDark.fg : AppColors.fg,
+              ),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: first,
-                    decoration: InputDecoration(labelText: 'Prénom', errorText: firstError),
+                    decoration: InputDecoration(
+                      labelText: 'Prénom',
+                      errorText: firstError,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: TextField(controller: last, decoration: const InputDecoration(labelText: 'Nom')),
+                  child: TextField(
+                    controller: last,
+                    decoration: const InputDecoration(labelText: 'Nom'),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             TextField(
               controller: email,
-              decoration: InputDecoration(labelText: 'Email', errorText: emailError),
+              decoration: InputDecoration(
+                labelText: 'Email',
+                errorText: emailError,
+              ),
             ),
             const SizedBox(height: 16),
-            TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone')),
+            TextField(
+              controller: phone,
+              decoration: const InputDecoration(labelText: 'Téléphone'),
+            ),
             const SizedBox(height: 20),
             ModalFooter(
               cancelLabel: 'Annuler',
@@ -309,16 +394,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onCancel: () => Navigator.pop(context),
               onConfirm: () async {
                 setModal(() {
-                  firstError = first.text.trim().isEmpty ? 'Nom complet requis' : null;
-                  emailError = email.text.trim().isEmpty ? 'Email requis' : null;
+                  firstError = first.text.trim().isEmpty
+                      ? 'Nom complet requis'
+                      : null;
+                  emailError = email.text.trim().isEmpty
+                      ? 'Email requis'
+                      : null;
                 });
                 if (firstError != null || emailError != null) return;
-                await AppState.I.saveProfile(UserProfile(
-                  firstName: first.text.trim(),
-                  lastName: last.text.trim(),
-                  email: email.text.trim(),
-                  phone: phone.text.trim(),
-                ));
+                await context.read<AppState>().saveProfile(
+                  UserProfile(
+                    firstName: first.text.trim(),
+                    lastName: last.text.trim(),
+                    email: email.text.trim(),
+                    phone: phone.text.trim(),
+                  ),
+                );
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 showToast(context, 'Profil mis à jour', ToastType.success);

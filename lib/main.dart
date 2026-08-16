@@ -1,66 +1,125 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:samapoche/screens/root_shell.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+
+import 'package:samapoche/env.dart';
+import 'package:samapoche/l10n/l10n.dart';
+import 'package:samapoche/router.dart';
+import 'package:samapoche/services/api_client.dart';
+import 'package:samapoche/services/cache.dart';
+import 'package:samapoche/services/observability.dart';
+import 'package:samapoche/services/token_storage.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';
 
-void main() {
+/// Point d'entrée par défaut (flavor dev, voir `lib/main_dev.dart`).
+void main() => runAppWith(
+  flavor: Flavor.dev,
+  apiBaseUrl: const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8000',
+  ),
+);
+
+/// Bootstrap partagé par les flavors (dev / staging / prod).
+///
+/// [client] permet d'injecter un faux backend dans les tests d'intégration.
+Future<void> runAppWith({
+  required Flavor flavor,
+  required String apiBaseUrl,
+  http.Client? client,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SamaPocheApp());
-}
+  await Observability.init(environment: flavor.name);
+  setupGlobalErrorHandlers();
 
-class SamaPocheApp extends StatelessWidget {
-  const SamaPocheApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: AppState.I,
-      builder: (context, _) {
-        return MaterialApp(
-          title: 'SamaPoche',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
-          themeMode: AppState.I.darkMode ? ThemeMode.dark : ThemeMode.light,
-          locale: const Locale('fr'),
-          supportedLocales: const [Locale('fr')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          home: AppState.I.loaded ? const RootShell() : const _Boot(),
-        );
-      },
-    );
+  if (kIsWeb) {
+    Hive.init(null);
+  } else {
+    final appDir = await getApplicationSupportDirectory();
+    await Hive.initFlutter(appDir.path);
   }
+
+  final api = Api(baseUrl: apiBaseUrl, client: client);
+  final cache = HiveCache();
+  await cache.init();
+  final state = AppState.create(
+    api: api,
+    cache: cache,
+    tokenStorage: TokenStorage(),
+  );
+
+  runApp(
+    SamaPocheApp(
+      state: state,
+      config: AppConfig(flavor: flavor, apiBaseUrl: apiBaseUrl),
+    ),
+  );
 }
 
-class _Boot extends StatefulWidget {
-  const _Boot();
+class SamaPocheApp extends StatefulWidget {
+  final AppState state;
+  final AppConfig config;
+  const SamaPocheApp({
+    super.key,
+    required this.state,
+    this.config = const AppConfig(flavor: Flavor.dev, apiBaseUrl: ''),
+  });
 
   @override
-  State<_Boot> createState() => _BootState();
+  State<SamaPocheApp> createState() => _SamaPocheAppState();
 }
 
-class _BootState extends State<_Boot> {
+class _SamaPocheAppState extends State<SamaPocheApp> {
+  late final AppState _state = widget.state;
+  late final GoRouter _router = AppRouter.create(_state);
+
   @override
   void initState() {
     super.initState();
-    AppState.I.init().then((_) {
-      if (mounted) setState(() {});
-    });
+    unawaited(_state.init());
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    _state.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.accent),
+    return Provider<AppConfig>.value(
+      value: widget.config,
+      child: ChangeNotifierProvider<AppState>.value(
+        value: _state,
+        child: ListenableBuilder(
+          listenable: _state,
+          builder: (context, _) {
+            return MaterialApp.router(
+              title: 'SamaPoche',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light(),
+              darkTheme: AppTheme.dark(),
+              themeMode: _state.darkMode ? ThemeMode.dark : ThemeMode.light,
+              locale: const Locale('fr'),
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              routerConfig: _router,
+            );
+          },
         ),
       ),
     );

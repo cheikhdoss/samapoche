@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:samapoche/screens/root_shell.dart';
-import 'package:samapoche/theme.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import 'package:samapoche/l10n/l10n.dart';
+import 'package:samapoche/router.dart';
 import 'package:samapoche/state/app_state.dart';
+import 'package:samapoche/theme.dart';
 import 'package:samapoche/widgets/widgets.dart';
 
 class LoginScreen extends StatefulWidget {
-  final void Function(RouteName) go;
-  const LoginScreen({super.key, required this.go});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -29,28 +32,30 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    final l10n = context.l10n;
     final email = _email.text.trim();
     final pass = _password.text;
     setState(() {
-      _emailError = email.isEmpty ? 'Email requis' : null;
-      _passError = pass.isEmpty ? 'Mot de passe requis' : null;
+      _emailError = email.isEmpty ? l10n.emailRequired : null;
+      _passError = pass.isEmpty ? l10n.passwordRequired : null;
     });
     if (_emailError != null || _passError != null) return;
 
     setState(() => _loading = true);
-    final err = await AppState.I.login(email, pass);
+    final err = await context.read<AppState>().login(email, pass);
     if (!mounted) return;
     setState(() => _loading = false);
     if (err != null) {
       showToast(context, err, ToastType.error);
     } else {
-      showToast(context, 'Connecté avec succès', ToastType.success);
-      widget.go(RouteName.home);
+      showToast(context, l10n.loginSuccess, ToastType.success);
+      context.go(Routes.home);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final isDark = context.isDark;
     final borderSoft = isDark ? AppDark.borderSoft : AppColors.borderSoft;
     final meta = isDark ? AppDark.meta : AppColors.meta;
@@ -64,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () => widget.go(RouteName.welcome),
+              onTap: () => context.go(Routes.welcome),
               child: Padding(
                 padding: const EdgeInsets.all(4),
                 child: Row(
@@ -72,19 +77,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
                     const SizedBox(width: 8),
-                    const Text('Retour', style: TextStyle(fontSize: 14, fontFamily: 'Inter')),
+                    Text(
+                      l10n.back,
+                      style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Bienvenue',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+            Text(
+              l10n.welcomeTitle,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Inter',
+              ),
             ),
             const SizedBox(height: 4),
             Text(
-              'Connectez-vous pour continuer',
+              l10n.loginSubtitle,
               style: TextStyle(fontSize: 16, color: muted),
             ),
             const SizedBox(height: 32),
@@ -92,9 +104,16 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
-                labelText: 'Email',
-                labelStyle: TextStyle(color: meta, fontSize: 14, fontWeight: FontWeight.w500),
-                floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w500),
+                labelText: l10n.email,
+                labelStyle: TextStyle(
+                  color: meta,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                floatingLabelStyle: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w500,
+                ),
                 errorText: _emailError,
               ),
             ),
@@ -103,12 +122,25 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _password,
               obscureText: !_showPass,
               decoration: InputDecoration(
-                labelText: 'Mot de passe',
-                labelStyle: TextStyle(color: meta, fontSize: 14, fontWeight: FontWeight.w500),
-                floatingLabelStyle: TextStyle(color: accent, fontWeight: FontWeight.w500),
+                labelText: l10n.password,
+                labelStyle: TextStyle(
+                  color: meta,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                floatingLabelStyle: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w500,
+                ),
                 errorText: _passError,
                 suffixIcon: IconButton(
-                  icon: Icon(_showPass ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: meta),
+                  icon: Icon(
+                    _showPass
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    size: 20,
+                    color: meta,
+                  ),
                   onPressed: () => setState(() => _showPass = !_showPass),
                 ),
               ),
@@ -126,35 +158,57 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 20,
                         decoration: BoxDecoration(
                           color: _remember ? accent : Colors.transparent,
-                          border: Border.all(color: _remember ? accent : borderSoft, width: 2),
+                          border: Border.all(
+                            color: _remember ? accent : borderSoft,
+                            width: 2,
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: _remember ? const Icon(Icons.check, color: Colors.white, size: 12) : null,
+                        child: _remember
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 12,
+                              )
+                            : null,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Se souvenir de moi',
-                        style: TextStyle(fontSize: 14, color: isDark ? AppDark.fg2 : AppColors.fg2),
+                        l10n.rememberMe,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? AppDark.fg2 : AppColors.fg2,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => showToast(context, 'Un email de réinitialisation sera envoyé à votre adresse', ToastType.info),
+                  onTap: () =>
+                      showToast(context, l10n.resetEmailSent, ToastType.info),
                   child: Text(
-                    'Mot de passe oublié ?',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: accent),
+                    l10n.forgotPassword,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: accent,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            AppButton(label: 'Continuer', primary: true, loading: _loading, onPressed: _login),
+            AppButton(
+              label: l10n.continueButton,
+              primary: true,
+              loading: _loading,
+              onPressed: _login,
+            ),
             const SizedBox(height: 20),
             Center(
               child: Text(
-                'Pas encore de compte ? ',
+                l10n.noAccount,
                 style: TextStyle(fontSize: 14, color: muted),
                 textAlign: TextAlign.center,
               ),
@@ -162,10 +216,14 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 4),
             Center(
               child: GestureDetector(
-                onTap: () => widget.go(RouteName.signup),
+                onTap: () => context.go(Routes.signup),
                 child: Text(
-                  'Créer un compte',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accent),
+                  l10n.createAccount,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                  ),
                 ),
               ),
             ),
@@ -175,7 +233,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 Expanded(child: Divider(color: borderSoft)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('Ou se connecter avec', style: TextStyle(fontSize: 12, color: meta)),
+                  child: Text(
+                    l10n.orConnectWith,
+                    style: TextStyle(fontSize: 12, color: meta),
+                  ),
                 ),
                 Expanded(child: Divider(color: borderSoft)),
               ],
@@ -184,15 +245,21 @@ class _LoginScreenState extends State<LoginScreen> {
             AppButton(
               label: 'Apple',
               ghost: true,
-              onPressed: () => showToast(context, 'Connexion Apple bientôt disponible', ToastType.info),
+              onPressed: () =>
+                  showToast(context, l10n.appleSoon, ToastType.info),
               icon: const Icon(Icons.apple_rounded, size: 18),
             ),
             const SizedBox(height: 8),
             AppButton(
               label: 'Google',
               ghost: true,
-              onPressed: () => showToast(context, 'Connexion Google bientôt disponible', ToastType.info),
-              icon: const Icon(Icons.g_mobiledata_rounded, size: 24, color: Color(0xFF4285F4)),
+              onPressed: () =>
+                  showToast(context, l10n.googleSoon, ToastType.info),
+              icon: const Icon(
+                Icons.g_mobiledata_rounded,
+                size: 24,
+                color: Color(0xFF4285F4),
+              ),
             ),
           ],
         ),

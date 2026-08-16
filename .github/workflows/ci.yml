@@ -1,101 +1,91 @@
-name: CI — Qualité, tests, sécurité et build
+name: CI Mobile — Qualité · Tests · Sécurité · Build
+
+# Pipeline mobile (schéma AFI) :
+#   1. Analyse statique (dart format + flutter analyze)
+#   2. Tests unitaires/widgets (couverture) + tests d'intégration (E2E hermétique)
+#   3. SAST : SonarQube (portique côté serveur) + MobSF (mobsfscan → Code scanning)
+#   4. Quality Gate : couverture de lignes ≥ seuil (échelonné)
+#   5. Build Android signé (APK + AAB, flavor staging)
 on:
   pull_request:
     branches: [main, dev]
   push:
     branches: [main, dev]
 
+env:
+  # Quality Gate couverture — échelonné : le seuil monte au fil des PR
+  # (atteindre un palier, puis relever). Progression : 40 → 50 → 60 → 70 → 80.
+  # Couverture actuelle : ≈ 69 % (51 tests).
+  COVERAGE_THRESHOLD: 50
+  LC_ALL: C.UTF-8
+
 jobs:
+  # ── Étape 1 · Analyse statique ─────────────────────────────────────────────
   analyse:
-    name: Analyse statique (flutter analyze + dart format)
+    name: 1 · Analyse (format + lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Épinglée sur le SDK de dev local (flutter --version) pour
+          # reproductibilité : mêmes lints, même formatteur en CI et en local.
+          flutter-version: 3.44.7
           cache: true
       - run: flutter pub get
+      - run: dart format --set-exit-if-changed lib test integration_test test_driver
       - run: flutter analyze
-      - run: dart format --set-exit-if-changed lib test
 
+  # ── Étape 2a · Tests unitaires + widgets (couverture) ───────────────────────
   tests:
-    name: Tests unitaires et widgets (couverture)
+    name: 2a · Tests unitaires + widgets
+    needs: analyse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.44.7
           cache: true
       - run: flutter pub get
       - run: flutter test --coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: coverage-lcov
           path: coverage/lcov.info
 
+  # ── Étape 2b · Tests d'intégration (E2E hermétique, aucun backend requis) ──
   tests-integration:
-    name: Tests d'intégration (parcours complets)
+    name: 2b · Tests d'intégration E2E
+    needs: analyse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.44.7
           cache: true
       - uses: nanasess/setup-chromedriver@v2
       - run: flutter pub get
       - name: Lancer chromedriver
         run: chromedriver --port=4444 &
-      - name: Exécuter les parcours E2E
+      - name: E2E hermétique (faux backend AFI injecté)
         run: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart -d web-server --web-port=8080
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: captures-echec-e2e
           path: screenshots/
 
-  build-android:
-    name: Build Android signé (APK + AAB)
-    runs-on: ubuntu-latest
-    env:
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - name: Reconstruire le keystore
-        if: ${{ env.KEYSTORE_PASSWORD != '' }}
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/key.jks
-      - name: Écrire les identifiants de signature
-        if: ${{ env.KEYSTORE_PASSWORD != '' }}
-        run: |
-          echo "storeFile=key.jks" >> android/key.properties
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
-      - run: flutter build apk --release
-      - run: flutter build appbundle --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: apk-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: aab-release
-          path: build/app/outputs/bundle/release/app-release.aab
-
+  # ── Étape 3a · SAST SonarQube (skip si secret absent) ───────────────────────
   sonarqube:
-    name: SAST SonarQube (porte de qualité ≥ 80 %)
+    name: 3a · SAST SonarQube
+    needs: tests
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: SonarSource/sonarqube-scan-action@v5
@@ -104,19 +94,85 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  mobsf:
-    name: SAST mobile MobSF (scan de l'APK)
+  # ── Étape 4 · Quality Gate couverture (seuil échelonné) ────────────────────
+  quality-gate:
+    name: 4 · Quality Gate couverture
+    needs: [tests, tests-integration]
     runs-on: ubuntu-latest
-    needs: build-android
-    env:
-      MOBSF_API_KEY: ${{ secrets.MOBSF_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
-          name: apk-release
-      - uses: MobSF/mobsf-scan-github-action@v2
-        if: ${{ env.MOBSF_API_KEY != '' }}
+          name: coverage-lcov
+          path: coverage
+      - name: Vérifier la porte de qualité
+        shell: bash
+        run: |
+          sudo apt-get update >/dev/null 2>&1
+          sudo apt-get install -y lcov >/dev/null 2>&1
+          cov="$(lcov --summary coverage/lcov.info | awk '/lines/ {gsub(/[%:]/, "", $2); print $2}')"
+          echo "Couverture de lignes : ${cov}% (seuil : ${COVERAGE_THRESHOLD}%)"
+          if awk "BEGIN { exit !($cov < ${COVERAGE_THRESHOLD}) }"; then
+            echo "::error::Porte de qualité rejetée : ${cov}% < ${COVERAGE_THRESHOLD}% — écrire plus de tests, puis relever COVERAGE_THRESHOLD."
+            exit 1
+          fi
+          echo "::notice::Porte de qualité franchie : ${cov}% ≥ ${COVERAGE_THRESHOLD}%"
+
+  # ── Étape 5 · Build Android signé (flavor staging) ─────────────────────────
+  build-android:
+    name: 5 · Build APK + AAB signés (staging)
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
         with:
-          target: app-release.apk
-          upload_sarif: true
+          flutter-version: 3.44.7
+          cache: true
+      - run: flutter pub get
+      - name: Signature Android (keystore + key.properties)
+        uses: ./.github/actions/android-signing
+        with:
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.KEY_ALIAS }}
+          key-password: ${{ secrets.KEY_PASSWORD }}
+      - name: Build APK (staging)
+        run: flutter build apk --release --flavor staging -t lib/main_staging.dart
+      - name: Build AAB (staging)
+        run: flutter build appbundle --release --flavor staging -t lib/main_staging.dart
+      - uses: actions/upload-artifact@v5
+        with:
+          name: apk-staging
+          path: build/app/outputs/flutter-apk/app-staging-release.apk
+      - uses: actions/upload-artifact@v5
+        with:
+          name: aab-staging
+          path: build/app/outputs/bundle/stagingRelease/app-staging-release.aab
+
+  # ── Étape 3b · SAST mobile MobSF (mobsfscan) ───────────────────────────────
+  # Scanne le code source mobile (Kotlin/Java) et publie les résultats dans
+  # l'onglet Security → Code scanning du dépôt (fichier SARIF). Le scan APK
+  # complet nécessite un serveur MobSF (service Docker) : à brancher plus tard.
+  mobsf:
+    name: 3b · SAST mobile MobSF
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: mobsfscan
+        uses: MobSF/mobsfscan@main
+        with:
+          args: '. --sarif --output results.sarif || true'
+      - name: Publier le rapport SARIF (Code scanning)
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: mobsf

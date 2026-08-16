@@ -1,20 +1,87 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
+
+import 'package:samapoche/data/repositories/auth_repository.dart';
+import 'package:samapoche/data/repositories/budgets_repository.dart';
+import 'package:samapoche/data/repositories/categories_repository.dart';
+import 'package:samapoche/data/repositories/chat_repository.dart';
+import 'package:samapoche/data/repositories/notifications_repository.dart';
+import 'package:samapoche/data/repositories/transactions_repository.dart';
+import 'package:samapoche/domain/models.dart';
+import 'package:samapoche/domain/usecases.dart';
+import 'package:samapoche/models/dto.dart';
+import 'package:samapoche/services/api_client.dart';
+import 'package:samapoche/services/cache.dart';
+import 'package:samapoche/services/observability.dart';
+import 'package:samapoche/services/token_storage.dart';
+import 'package:samapoche/utils/format.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/models.dart';
-import '../theme.dart';
-import '../utils/format.dart';
-
+/// État applicatif : conteneur d'état UI + orchestration des données.
+///
+/// Depuis le refactor « repository / use cases », [AppState] ne parle plus
+/// au réseau ni au cache : il délègue aux repositories (frontière
+/// DTO ↔ domaine) et au [SyncUseCase] (orchestration multi-agrégats), et ne
+/// garde que l'état de présentation et les préférences utilisateur.
 class AppState extends ChangeNotifier {
-  static final AppState I = AppState._();
+  final AuthRepository auth;
+  final CategoriesRepository categoriesRepository;
+  final TransactionsRepository transactionsRepository;
+  final BudgetsRepository budgetsRepository;
+  final NotificationsRepository notificationsRepository;
+  final ChatRepository chatRepository;
+  final SyncUseCase syncUseCase;
+  final Logger _log = buildLogger('AppState');
 
-  AppState._();
+  AppState({
+    required this.auth,
+    required this.categoriesRepository,
+    required this.transactionsRepository,
+    required this.budgetsRepository,
+    required this.notificationsRepository,
+    required this.chatRepository,
+    required this.syncUseCase,
+  });
+
+  /// Assemblage par défaut (app et tests) : câble les repositories sur le
+  /// transport HTTP, le cache et le stockage sécurisé du token.
+  factory AppState.create({
+    required Api api,
+    required CacheStore cache,
+    required TokenStorage tokenStorage,
+  }) {
+    final auth = AuthRepository(
+      api: api,
+      cache: cache,
+      tokenStorage: tokenStorage,
+    );
+    final categories = CategoriesRepository(api: api, cache: cache);
+    final transactions = TransactionsRepository(api: api, cache: cache);
+    final budgets = BudgetsRepository(api: api, cache: cache);
+    final notifications = NotificationsRepository(api: api, cache: cache);
+    final chat = ChatRepository(api: api);
+    return AppState(
+      auth: auth,
+      categoriesRepository: categories,
+      transactionsRepository: transactions,
+      budgetsRepository: budgets,
+      notificationsRepository: notifications,
+      chatRepository: chat,
+      syncUseCase: SyncUseCase(
+        auth: auth,
+        categories: categories,
+        transactions: transactions,
+        budgets: budgets,
+        notifications: notifications,
+      ),
+    );
+  }
 
   SharedPreferences? _prefs;
   bool _loaded = false;
+  bool _syncing = false;
 
   UserProfile? user;
   List<Txn> transactions = [];
@@ -30,34 +97,24 @@ class AppState extends ChangeNotifier {
   List<AppNotification> notifications = [];
   final List<ChatMessage> chat = [];
 
+  Map<String, int> _categoryIds = {};
+  int? _alimentationBudgetId;
+  String? _lastSyncError;
+  bool _sessionExpired = false;
+  int _pendingCount = 0;
+
   bool get loaded => _loaded;
+  bool get syncing => _syncing;
+  bool get hasPendingSync => _pendingCount > 0;
+  bool get sessionExpired => _sessionExpired;
+  String? get lastSyncError => _lastSyncError;
+
+  Map<int, String> get _categoryNames => {
+    for (final e in _categoryIds.entries) e.value: e.key,
+  };
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    // Profil
-    final u = _prefs!.getString('samapoche_user');
-    if (u != null) {
-      try {
-        user = UserProfile.fromJson(jsonDecode(u) as Map<String, dynamic>);
-      } catch (_) {
-        _prefs!.remove('samapoche_user');
-      }
-    }
-    // Transactions
-    final t = _prefs!.getString('samapoche_txns');
-    if (t != null) {
-      try {
-        transactions = (jsonDecode(t) as List)
-            .map((e) => Txn.fromJson(e as Map<String, dynamic>))
-            .toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
-      } catch (_) {
-        transactions = seedTransactions();
-      }
-    } else {
-      transactions = seedTransactions();
-      await _saveTxns();
-    }
     darkMode = _prefs!.getBool('samapoche_dark') ?? false;
     budget = _prefs!.getInt('samapoche_budget') ?? 150000;
     savingsGoal = _prefs!.getInt('samapoche_goal') ?? 300000;
@@ -67,71 +124,197 @@ class AppState extends ChangeNotifier {
     ecoData = _prefs!.getBool('samapoche_eco') ?? false;
     budgetAuto = _prefs!.getBool('samapoche_budget_auto') ?? true;
 
-    _buildNotifications();
-    _seedChat();
+    final stored = await auth.restoreToken() ?? _migrateLegacyToken();
+    if (stored != null && stored.isNotEmpty) {
+      auth.token = stored;
+      await refresh();
+    }
+
     _loaded = true;
     notifyListeners();
   }
 
+  /// Migration depuis l'ancien stockage SharedPreferences (v1).
+  String? _migrateLegacyToken() {
+    final legacy = _prefs!.getString('samapoche_token');
+    if (legacy == null || legacy.isEmpty) return null;
+    unawaited(auth.persistToken(legacy));
+    unawaited(_prefs!.remove('samapoche_token'));
+    return legacy;
+  }
+
+  Future<void> refresh() => _sync(silent: false);
+
+  Future<void> _sync({required bool silent}) async {
+    if (_syncing) return;
+    if (!auth.hasToken) return;
+    _syncing = true;
+    _lastSyncError = null;
+    if (!silent) notifyListeners();
+    try {
+      final result = await syncUseCase.run();
+      user = result.user;
+      _categoryIds = {
+        for (final e in result.categoryNames.entries) e.value: e.key,
+      };
+      transactions = result.transactions;
+      _applyBudgets(result.budgets);
+      notifications = _toAppNotifications(result.notifications);
+      _pendingCount = result.pendingRemaining;
+      _sessionExpired = false;
+    } on ApiException catch (e) {
+      _log.warning('Sync échoué: ${e.message}');
+      if (e.statusCode == 401) {
+        _lastSyncError = e.message;
+        await logout(silent: true);
+        _sessionExpired = true;
+      } else {
+        _lastSyncError = e.message;
+        _loadCachedData();
+      }
+    } on Exception catch (e, st) {
+      _log.severe('Sync inattendu', e, st);
+      Observability.capture(e, st);
+      _lastSyncError = 'Erreur inattendue. Réessayez.';
+      _loadCachedData();
+    } finally {
+      _syncing = false;
+      notifyListeners();
+    }
+  }
+
+  void _applyBudgets(List<BudgetStatusDto> budgets) {
+    final alimentation = budgets.where((b) => b.categoryName == 'Alimentation');
+    if (alimentation.isEmpty) return;
+    final b = alimentation.first;
+    _alimentationBudgetId = b.id;
+    budget = b.amount.round();
+    // Les préférences ne sont disponibles qu'après `init()` : une
+    // synchronisation précoce (tests) ne doit pas planter.
+    final prefs = _prefs;
+    if (prefs != null) {
+      unawaited(prefs.setInt('samapoche_budget', budget));
+    }
+  }
+
+  List<AppNotification> _toAppNotifications(List<NotificationDto> list) {
+    final now = DateTime.now();
+    return [
+      for (final n in list)
+        AppNotification.fromDto(
+          n,
+          time: _notifTime(n.createdAt.toLocal(), now),
+          group: _notifGroup(n.createdAt.toLocal(), now),
+        ),
+    ];
+  }
+
+  /// Hors-ligne : dernière image connue du serveur, sinon rien.
+  void _loadCachedData() {
+    final names = categoriesRepository.cachedNames();
+    if (_categoryIds.isEmpty && names != null) {
+      _categoryIds = {for (final e in names.entries) e.value: e.key};
+    }
+    user ??= auth.cachedUser();
+    if (transactions.isEmpty && names != null) {
+      transactions = transactionsRepository.cached(categoryNames: names);
+    }
+    _pendingCount = transactionsRepository.pendingCount;
+  }
+
   // ─── Auth ────────────────────────────────────────────────
   Future<String?> signup(UserProfile p, String password) async {
-    final existing = _prefs!.getString('samapoche_user');
-    if (existing != null) {
-      final e = UserProfile.fromJson(jsonDecode(existing) as Map<String, dynamic>);
-      if (e.email == p.email) return 'Un compte existe déjà avec cet email.';
-    }
-    user = p;
-    await _prefs!.setString('samapoche_user', jsonEncode(p.toJson()));
-    await _prefs!.setString('samapoche_pass', _hash(password));
-    notifyListeners();
+    final error = await auth.signup(
+      email: p.email,
+      password: password,
+      fullName: p.fullName,
+    );
+    if (error != null) return error;
+    await _sync(silent: true);
     return null;
   }
 
   Future<String?> login(String email, String password) async {
-    final existing = _prefs!.getString('samapoche_user');
-    if (existing == null) return 'Aucun compte trouvé. Créez-en un d\'abord.';
-    final e = UserProfile.fromJson(jsonDecode(existing) as Map<String, dynamic>);
-    if (e.email != email) return 'Email incorrect';
-    final saved = _prefs!.getString('samapoche_pass');
-    if (saved == null || saved != _hash(password)) return 'Mot de passe incorrect';
-    user = e;
-    notifyListeners();
+    final error = await auth.login(email: email, password: password);
+    if (error != null) return error;
+    await _sync(silent: true);
     return null;
   }
 
-  Future<void> logout() async {
+  Future<void> logout({bool silent = false}) async {
     user = null;
-    await _prefs!.remove('samapoche_user');
+    transactions = [];
+    notifications = [];
     chat.clear();
-    _seedChat();
-    notifyListeners();
+    _alimentationBudgetId = null;
+    _sessionExpired = false;
+    _lastSyncError = null;
+    await auth.logout();
+    if (!silent) notifyListeners();
   }
 
   Future<void> saveProfile(UserProfile p) async {
     user = p;
-    await _prefs!.setString('samapoche_user', jsonEncode(p.toJson()));
+    await auth.storeLocalUser(p);
     notifyListeners();
   }
-
-  String _hash(String s) => sha256.convert(utf8.encode(s)).toString();
 
   // ─── Transactions ────────────────────────────────────────
-  Future<void> addTxn(Txn t) async {
+  /// Écriture offline-first : l'app est optimiste, le serveur suit.
+  /// Si le serveur est injoignable, l'écriture est différée et rejouée
+  /// automatiquement à la prochaine synchronisation.
+  Future<String?> addTxn(Txn t) async {
+    final catId = _categoryIds[t.category];
+    if (catId == null) return 'Catégorie inconnue du serveur.';
     transactions.insert(0, t);
-    await _saveTxns();
+    await _mirror();
     notifyListeners();
+    final outcome = await transactionsRepository.createOfflineFirst(
+      local: t,
+      categoryId: catId,
+      categoryNames: _categoryNames,
+    );
+    switch (outcome) {
+      case CreateTxnSuccess(:final txn):
+        final i = transactions.indexWhere((x) => x.id == t.id);
+        if (i >= 0) transactions[i] = txn;
+        await _mirror();
+      case CreateTxnDeferred(:final pendingCount):
+        _pendingCount = pendingCount;
+        notifyListeners();
+    }
+    return null;
   }
 
-  Future<void> updateTxn(Txn t) async {
-    final i = transactions.indexWhere((x) => x.id == t.id);
-    if (i >= 0) transactions[i] = t;
-    await _saveTxns();
-    notifyListeners();
+  Future<String?> updateTxn(Txn t) async {
+    if (!auth.hasToken) return 'Session expirée. Reconnectez-vous.';
+    final id = int.tryParse(t.id);
+    if (id == null) return 'Transaction introuvable.';
+    final catId = _categoryIds[t.category];
+    if (catId == null) return 'Catégorie inconnue du serveur.';
+    try {
+      final updated = await transactionsRepository.update(
+        id,
+        amount: t.amount.toDouble(),
+        categoryId: catId,
+        description: t.description.isNotEmpty ? t.description : null,
+        categoryNames: _categoryNames,
+      );
+      final i = transactions.indexWhere((x) => x.id == t.id);
+      if (i >= 0) transactions[i] = updated;
+      await _mirror();
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
   }
 
-  Future<void> _saveTxns() async {
-    await _prefs!.setString('samapoche_txns', jsonEncode(transactions.map((t) => t.toJson()).toList()));
-  }
+  Future<void> _mirror() => transactionsRepository.mirror(
+    transactions,
+    categoryIds: _categoryIds,
+    userId: user?.id,
+  );
 
   // ─── Dashboard computed ──────────────────────────────────
   int get balance => transactions.fold(0, (s, t) => s + t.signed);
@@ -143,16 +326,27 @@ class AppState extends ChangeNotifier {
         .toList();
   }
 
-  int get monthIncome => monthTxns.where((t) => t.type == TxnType.income).fold(0, (s, t) => s + t.amount);
+  int get monthIncome => monthTxns
+      .where((t) => t.type == TxnType.income)
+      .fold(0, (s, t) => s + t.amount);
 
-  int get monthExpense => monthTxns.where((t) => t.type == TxnType.expense).fold(0, (s, t) => s + t.amount);
+  int get monthExpense => monthTxns
+      .where((t) => t.type == TxnType.expense)
+      .fold(0, (s, t) => s + t.amount);
 
-  int get budgetSpent =>
-      transactions.where((t) => t.category == 'Alimentation' && t.type == TxnType.expense && _sameMonth(t.date)).fold(0, (s, t) => s + t.amount);
+  int get budgetSpent => transactions
+      .where(
+        (t) =>
+            t.category == 'Alimentation' &&
+            t.type == TxnType.expense &&
+            _sameMonth(t.date),
+      )
+      .fold(0, (s, t) => s + t.amount);
 
   int get budgetRemaining => budget - budgetSpent;
 
-  double get budgetPct => budget == 0 ? 0 : (budgetSpent / budget).clamp(0, 1.0);
+  double get budgetPct =>
+      budget == 0 ? 0 : (budgetSpent / budget).clamp(0, 1.0);
 
   int get daysLeftInMonth {
     final now = DateTime.now();
@@ -160,7 +354,8 @@ class AppState extends ChangeNotifier {
     return last - now.day;
   }
 
-  int get dailyAvg => daysLeftInMonth == 0 ? 0 : (budgetRemaining / daysLeftInMonth).round();
+  int get dailyAvg =>
+      daysLeftInMonth == 0 ? 0 : (budgetRemaining / daysLeftInMonth).round();
 
   bool _sameMonth(DateTime d) {
     final now = DateTime.now();
@@ -169,7 +364,9 @@ class AppState extends ChangeNotifier {
 
   List<(String, int, Color)> get donutData {
     final byCat = <String, int>{};
-    for (final t in transactions.where((t) => t.type == TxnType.expense && _sameMonth(t.date))) {
+    for (final t in transactions.where(
+      (t) => t.type == TxnType.expense && _sameMonth(t.date),
+    )) {
       byCat[t.category] = (byCat[t.category] ?? 0) + t.amount;
     }
     if (byCat.isEmpty) return [];
@@ -177,147 +374,88 @@ class AppState extends ChangeNotifier {
     final list = byCat.entries.map((e) {
       final c = Categories.byName(e.key);
       return (e.key, (e.value / total * 100).round(), c.fg);
-    }).toList()
-      ..sort((a, b) => b.$2.compareTo(a.$2));
+    }).toList()..sort((a, b) => b.$2.compareTo(a.$2));
     return list;
   }
 
   // ─── Notifications ──────────────────────────────────────
-  void _buildNotifications() {
-    notifications = [
-      AppNotification(
-        title: 'Budget alimentation presque atteint',
-        desc: 'Vous avez utilisé 82% de votre budget alimentation. Il reste 18 700 F CFA.',
-        time: '14:30',
-        group: "Aujourd'hui",
-        bg: AppColors.warnSoft,
-        fg: const Color(0xFFD97706),
-        icon: Icons.warning_amber_rounded,
-        read: false,
-      ),
-      AppNotification(
-        title: "Objectif d'épargne atteint à 60%",
-        desc: 'Vous avez épargné 180 000 F CFA sur votre objectif de 300 000 F CFA. Continuez !',
-        time: '10:15',
-        group: "Aujourd'hui",
-        bg: AppColors.accentSoft,
-        fg: AppColors.accent,
-        icon: Icons.trending_up_rounded,
-        read: false,
-      ),
-      AppNotification(
-        title: 'Rappel : Facture Senelec',
-        desc: 'Votre facture d\'électricité de 32 000 F CFA arrive à échéance le 25 juillet.',
-        time: 'Lun 21 Juil',
-        group: 'Cette semaine',
-        bg: AppColors.infoSoft,
-        fg: const Color(0xFF2563EB),
-        icon: Icons.event_rounded,
-        read: true,
-      ),
-      AppNotification(
-        title: 'Dépense inhabituelle détectée',
-        desc: 'Votre dépense chez Jumia (15 900 F CFA) est 40% plus élevée que votre moyenne mensuelle.',
-        time: 'Ven 11 Juil',
-        group: 'Cette semaine',
-        bg: AppColors.dangerSoft,
-        fg: AppColors.danger,
-        icon: Icons.error_outline_rounded,
-        read: true,
-      ),
-      AppNotification(
-        title: 'Insight IA : Vous gérez mieux votre budget',
-        desc: 'Félicitations ! Vous avez réduit vos dépenses de 8% par rapport au mois dernier. Analyse détaillée disponible.',
-        time: 'Mer 2 Juil',
-        group: 'Juillet 2026',
-        bg: AppColors.accentSoft,
-        fg: AppColors.accent,
-        icon: Icons.auto_awesome_rounded,
-        read: true,
-      ),
-    ];
-  }
-
-  void markAllRead() {
-    for (final n in notifications) {
-      n.read = true;
+  Future<void> markAllRead() async {
+    notifications = [for (final n in notifications) n.copyWith(read: true)];
+    notifyListeners();
+    try {
+      await notificationsRepository.markAllRead();
+    } on ApiException catch (e) {
+      _log.warning('markAllRead: ${e.message}');
     }
-    notifyListeners();
   }
 
-  void markRead(AppNotification n) {
-    n.read = true;
+  Future<void> markRead(AppNotification n) async {
+    notifications = [
+      for (final x in notifications) x.id == n.id ? x.copyWith(read: true) : x,
+    ];
     notifyListeners();
+    if (n.id != null) {
+      try {
+        await notificationsRepository.markRead(n.id!);
+      } on ApiException catch (e) {
+        _log.warning('markRead: ${e.message}');
+      }
+    }
   }
 
   // ─── Chat ────────────────────────────────────────────────
-  void _seedChat() {
-    final now = DateTime.now();
-    final n1 = DateTime(now.year, now.month, now.day, 9, 41);
-    final n2 = DateTime(now.year, now.month, now.day, 9, 42);
-    final n3 = DateTime(now.year, now.month, now.day, 9, 43);
-    chat.addAll([
-      ChatMessage(
-        text: 'Bonjour ${user?.firstName ?? ''} ! Je suis votre assistant financier. Comment puis-je vous aider aujourd\'hui ?',
-        fromUser: false,
-        time: n1,
-      ),
-      ChatMessage(text: 'Quel est mon budget alimentation ce mois-ci ?', fromUser: true, time: n2),
-      ChatMessage(
-        text: 'Votre budget Alimentation pour juillet est de 150 000 F CFA. Vous avez déjà dépensé 82 300 F CFA (55%). Il vous reste 67 700 F CFA pour les 9 prochains jours. Voulez-vous ajuster ce budget ?',
-        fromUser: false,
-        time: n2,
-      ),
-      ChatMessage(text: 'Des conseils pour économiser ?', fromUser: true, time: n3),
-      ChatMessage(
-        text: 'Voici 3 conseils personnalisés pour vous :\n\n1. Réduisez vos sorties restaurant de 20% ce mois-ci\n2. Privilégiez les achats en gros à Auchan\n3. Activez l\'arrondi automatique sur chaque transaction',
-        fromUser: false,
-        time: n3,
-      ),
-    ]);
-  }
+  Future<String> chatReply(String message) => chatRepository.reply(message);
 
   void clearChat() {
-    chat.clear();
-    chat.add(ChatMessage(
-      text: 'Conversation effacée. Je suis là pour vous aider !',
-      fromUser: false,
-      time: DateTime.now(),
-    ));
+    chat
+      ..clear()
+      ..add(
+        ChatMessage(
+          text: 'Conversation effacée. Je suis là pour vous aider !',
+          fromUser: false,
+          time: DateTime.now(),
+        ),
+      );
     notifyListeners();
   }
 
-  String aiReply(String q) {
-    final ql = q.toLowerCase();
-    if (ql.contains('budget') || ql.contains('alimentation')) {
-      return 'Votre budget Alimentation pour juillet est de ${formatFCFA(budget)}. Vous avez déjà dépensé ${formatFCFA(budgetSpent)} (${(budgetPct * 100).round()}%). Il vous reste ${formatFCFA(budgetRemaining)} pour les $daysLeftInMonth prochains jours.';
+  // ─── Budget ──────────────────────────────────────────────
+  Future<String?> setBudget(int v) async {
+    final prev = budget;
+    budget = v;
+    await _prefs!.setInt('samapoche_budget', v);
+    notifyListeners();
+    final catId = _categoryIds['Alimentation'] ?? _categoryIds['Autres'];
+    if (catId == null) return null;
+    final now = DateTime.now();
+    try {
+      if (_alimentationBudgetId != null) {
+        await budgetsRepository.update(
+          _alimentationBudgetId!,
+          amount: v.toDouble(),
+        );
+      } else {
+        final created = await budgetsRepository.create(
+          categoryId: catId,
+          amount: v.toDouble(),
+          month: now.month,
+          year: now.year,
+        );
+        _alimentationBudgetId = created.id;
+      }
+      return null;
+    } on ApiException catch (e) {
+      budget = prev;
+      await _prefs!.setInt('samapoche_budget', prev);
+      notifyListeners();
+      return e.message;
     }
-    if (ql.contains('dépense') || ql.contains('depense') || ql.contains('catégorie') || ql.contains('categorie')) {
-      final parts = donutData.map((d) => '• ${d.$1} : ${formatFCFA(d.$2 == 0 ? 0 : (monthExpense * d.$2 / 100).round())}').join('\n');
-      return 'Voici le résumé de vos dépenses pour ${moisAnnee(DateTime.now())} :\n$parts\n— Total : ${formatFCFA(monthExpense)}';
-    }
-    if (ql.contains('épargne') || ql.contains('epargne') || ql.contains('économi') || ql.contains('economi')) {
-      return 'Pour atteindre votre objectif d\'épargne de ${formatFCFA(savingsGoal)} :\n1. Réduisez vos dépenses alimentation de 15% (~12 000 F/mois)\n2. Limitez les courses Yango aux jours de pluie\n3. Activez l\'arrondi automatique sur chaque transaction\n\nVous pourriez économiser 45 000 F CFA supplémentaires ce mois-ci !';
-    }
-    if (ql.contains('conseil') || ql.contains('astuce') || ql.contains('mieu')) {
-      return 'Voici 3 conseils personnalisés :\n1. Réduisez vos sorties restaurant de 20% ce mois-ci\n2. Privilégiez les achats en gros à Auchan\n3. Activez les notifications de dépassement de budget';
-    }
-    if (ql.contains('salaire') || ql.contains('revenu')) {
-      return 'Votre salaire de 450 000 F CFA a été crédité le 14 Juillet. Depuis le début du mois, vous avez dépensé ${formatFCFA(monthExpense)}, soit un taux d\'épargne de ${monthIncome == 0 ? 0 : (100 - monthExpense / monthIncome * 100).round()}%. Excellent travail !';
-    }
-    return 'Je suis votre assistant financier SamaPoche. Je peux vous aider à :\n• Consulter votre budget mensuel\n• Analyser vos dépenses par catégorie\n• Fixer des objectifs d\'épargne\n• Obtenir des conseils personnalisés\n\nQue souhaitez-vous savoir ?';
   }
 
   // ─── Settings ────────────────────────────────────────────
-  Future<void> setDarkMode(bool v) async {
-    darkMode = v;
-    await _prefs!.setBool('samapoche_dark', v);
-    notifyListeners();
-  }
-
-  Future<void> setBudget(int v) async {
-    budget = v;
-    await _prefs!.setInt('samapoche_budget', v);
+  Future<void> setDarkMode({required bool value}) async {
+    darkMode = value;
+    await _prefs!.setBool('samapoche_dark', value);
     notifyListeners();
   }
 
@@ -327,7 +465,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setPref(String key, bool v) async {
+  Future<void> setPref(String key, {required bool value}) async {
+    final v = value;
     switch (key) {
       case 'push':
         notifPush = v;
@@ -353,21 +492,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<Txn> seedTransactions() {
-    final now = DateTime.now();
-    final juli = DateTime(now.year, now.month, now.day);
-    DateTime dt(int day, int h, int m) {
-      return DateTime(juli.year, juli.month.clamp(1, 12), day.clamp(1, DateTime(juli.year, juli.month.clamp(1, 12) + 1, 0).day), h, m);
+  String _notifTime(DateTime dt, DateTime now) {
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
+    return formatDateListe(dt);
+  }
 
-    return [
-      Txn(id: 'auchan', name: 'Auchan Dakar', category: 'Alimentation', type: TxnType.expense, amount: 28500, description: 'Courses alimentaires', payment: 'Carte Visa ••8842', date: dt(22, 14, 30)),
-      Txn(id: 'yango', name: 'Yango Course', category: 'Transport', type: TxnType.expense, amount: 5200, description: 'Course Ouakam → Médina', payment: 'Orange Money', date: dt(21, 8, 15)),
-      Txn(id: 'salaire', name: 'Salaire Juillet', category: 'Salaire', type: TxnType.income, amount: 450000, description: 'Salaire mensuel Juillet 2026', payment: 'Virement bancaire', date: dt(14, 9, 0)),
-      Txn(id: 'jumia', name: 'Jumia Sénégal', category: 'Shopping', type: TxnType.expense, amount: 15900, description: 'Electroménager & accessoires', payment: 'Carte Visa ••8842', date: dt(11, 16, 45)),
-      Txn(id: 'senelec', name: 'Facture Senelec', category: 'Factures', type: TxnType.expense, amount: 32000, description: 'Électricité Juillet 2026', payment: 'Prélèvement automatique', date: dt(9, 11, 0)),
-      Txn(id: 'canal', name: 'Canal+ Abonnement', category: 'Loisirs', type: TxnType.expense, amount: 12000, description: 'Abonnement mensuel Canal+', payment: 'Carte Visa ••8842', date: dt(5, 10, 0)),
-      Txn(id: 'pharmacie', name: 'Pharmacie Ouakam', category: 'Santé', type: TxnType.expense, amount: 8500, description: 'Médicaments prescription', payment: 'Carte Visa ••8842', date: dt(3, 18, 30)),
-    ]..sort((a, b) => b.date.compareTo(a.date));
+  String _notifGroup(DateTime dt, DateTime now) {
+    final diff = now.difference(dt).inDays;
+    if (diff <= 1) return "Aujourd'hui";
+    if (diff <= 7) return 'Cette semaine';
+    return '${monthsFr[dt.month - 1]} ${dt.year}';
   }
 }
+
+const monthsFr = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];

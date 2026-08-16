@@ -1,0 +1,23 @@
+# Mises à jour de dépendances automatisées (GitHub Dependabot).
+version: 2
+updates:
+  # Dépendances Dart/Flutter (pub.dev).
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - dart
+
+  # Actions GitHub utilisées par les workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - ci

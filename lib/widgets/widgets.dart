@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:samapoche/theme.dart';
 
@@ -36,9 +38,9 @@ class AppButton extends StatelessWidget {
     final fg2 = isDark ? AppDark.fg2 : AppColors.fg2;
     final borderSoft = isDark ? AppDark.borderSoft : AppColors.borderSoft;
 
-    Color bgColor = Colors.transparent;
-    Color fgColor = fg2;
-    BorderSide side = BorderSide.none;
+    var bgColor = Colors.transparent;
+    var fgColor = fg2;
+    var side = BorderSide.none;
     if (primary) {
       bgColor = accent;
       fgColor = Colors.white;
@@ -58,10 +60,14 @@ class AppButton extends StatelessWidget {
     final pad = large
         ? const EdgeInsets.symmetric(horizontal: 28, vertical: 16)
         : small
-            ? const EdgeInsets.symmetric(horizontal: 18, vertical: 10)
-            : const EdgeInsets.symmetric(horizontal: 24, vertical: 14);
+        ? const EdgeInsets.symmetric(horizontal: 18, vertical: 10)
+        : const EdgeInsets.symmetric(horizontal: 24, vertical: 14);
 
-    final size = large ? 17.0 : small ? 14.0 : 16.0;
+    final size = large
+        ? 17.0
+        : small
+        ? 14.0
+        : 16.0;
 
     return GestureDetector(
       onTap: onPressed == null ? null : () => onPressed!(),
@@ -91,10 +97,7 @@ class AppButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (icon != null) ...[
-                    icon!,
-                    const SizedBox(width: 8),
-                  ],
+                  if (icon != null) ...[icon!, const SizedBox(width: 8)],
                   Text(
                     label,
                     style: TextStyle(
@@ -141,7 +144,11 @@ class AppCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: borderSoft),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Material(
@@ -161,7 +168,12 @@ class AppChip extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
-  const AppChip({super.key, required this.label, required this.active, required this.onTap});
+  const AppChip({
+    super.key,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +215,10 @@ class FieldLabel extends StatelessWidget {
     final fg2 = isDark ? AppDark.fg2 : AppColors.fg2;
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: fg2)),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: fg2),
+      ),
     );
   }
 }
@@ -238,7 +253,11 @@ class ToastType {
   static const info = 'info';
 }
 
-void showToast(BuildContext context, String message, [String type = ToastType.info]) {
+void showToast(
+  BuildContext context,
+  String message, [
+  String type = ToastType.info,
+]) {
   final isDark = context.isDark;
   Color bg;
   Color fg;
@@ -278,14 +297,34 @@ void showToast(BuildContext context, String message, [String type = ToastType.in
           tween: Tween(begin: -1, end: 0),
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
-          builder: (_, v, child) => Transform.translate(offset: Offset(0, 20 * v), child: child),
+          builder: (_, v, child) =>
+              Transform.translate(offset: Offset(0, 20 * v), child: child),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(12),
-              border: Border(left: BorderSide(color: fg == AppColors.toastSuccessFg || fg == AppDark.toastSuccessFg ? AppColors.accent : fg == AppColors.toastErrorFg || fg == AppDark.toastErrorFg ? AppColors.danger : fg == AppColors.toastWarnFg || fg == AppDark.toastWarnFg ? AppColors.warn : AppColors.info, width: 4)),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 20)],
+              border: Border(
+                left: BorderSide(
+                  color:
+                      fg == AppColors.toastSuccessFg ||
+                          fg == AppDark.toastSuccessFg
+                      ? AppColors.accent
+                      : fg == AppColors.toastErrorFg ||
+                            fg == AppDark.toastErrorFg
+                      ? AppColors.danger
+                      : fg == AppColors.toastWarnFg || fg == AppDark.toastWarnFg
+                      ? AppColors.warn
+                      : AppColors.info,
+                  width: 4,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 20,
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -294,14 +333,23 @@ void showToast(BuildContext context, String message, [String type = ToastType.in
                 Expanded(
                   child: Text(
                     message,
-                    style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w500, height: 1.4),
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
                   ),
                 ),
                 GestureDetector(
                   onTap: () => entry.remove(),
                   child: Padding(
                     padding: const EdgeInsets.all(4),
-                    child: Icon(Icons.close, color: fg.withValues(alpha: 0.7), size: 14),
+                    child: Icon(
+                      Icons.close,
+                      color: fg.withValues(alpha: 0.7),
+                      size: 14,
+                    ),
                   ),
                 ),
               ],
@@ -318,48 +366,68 @@ void showToast(BuildContext context, String message, [String type = ToastType.in
 }
 
 void showModal(BuildContext context, Widget body, {String? title}) {
-  showDialog(
-    context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.4),
-    builder: (_) => Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        width: 340,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 32, offset: const Offset(0, 8))],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.close, size: 16),
-                      ),
-                    ),
-                  ],
-                ),
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          width: 340,
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 32,
+                offset: const Offset(0, 8),
               ),
-            Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), child: body),
-          ],
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (title != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.close, size: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: body,
+              ),
+            ],
+          ),
         ),
       ),
     ),
@@ -388,12 +456,22 @@ class ModalFooter extends StatelessWidget {
       children: [
         Expanded(
           flex: 1,
-          child: AppButton(label: cancelLabel, onPressed: onCancel, ghost: true, small: true),
+          child: AppButton(
+            label: cancelLabel,
+            onPressed: onCancel,
+            ghost: true,
+            small: true,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
           flex: 2,
-          child: AppButton(label: confirmLabel, onPressed: onConfirm, primary: confirmPrimary, small: true),
+          child: AppButton(
+            label: confirmLabel,
+            onPressed: onConfirm,
+            primary: confirmPrimary,
+            small: true,
+          ),
         ),
       ],
     );
@@ -426,7 +504,10 @@ class AppTabBar extends StatelessWidget {
         color: bg.withValues(alpha: 0.92),
         border: Border(top: BorderSide(color: borderSoft)),
       ),
-      padding: EdgeInsets.only(top: 4, bottom: MediaQuery.of(context).padding.bottom + 4),
+      padding: EdgeInsets.only(
+        top: 4,
+        bottom: MediaQuery.of(context).padding.bottom + 4,
+      ),
       child: Row(
         children: [
           for (int i = 0; i < tabs.length; i++)
@@ -437,22 +518,30 @@ class AppTabBar extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(tabs[i].$1,
-                        size: 24, color: current == i ? accent : meta),
+                    Icon(
+                      tabs[i].$1,
+                      size: 24,
+                      color: current == i ? accent : meta,
+                    ),
                     const SizedBox(height: 2),
-                    Text(tabs[i].$2,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: current == i ? accent : meta,
-                        )),
+                    Text(
+                      tabs[i].$2,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: current == i ? accent : meta,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeOut,
                       width: current == i ? 20 : 0,
                       height: 3,
-                      decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(2)),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ],
                 ),
@@ -476,11 +565,25 @@ class SectionTitle extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Inter',
+          ),
+        ),
         if (link != null)
           GestureDetector(
             onTap: onLink,
-            child: Text(link!, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: accent)),
+            child: Text(
+              link!,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: accent,
+              ),
+            ),
           ),
       ],
     );
@@ -503,7 +606,14 @@ class EmptyState extends StatelessWidget {
         children: [
           Icon(Icons.receipt_long, size: 48, color: border),
           const SizedBox(height: 16),
-          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: fg)),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: fg,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             subtitle,
@@ -544,11 +654,12 @@ class ProfileRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: -16),
+        // Pas de marge négative : l'assertion `isNonNegative` de Container
+        // plante en debug (Flutter ≥ 3.13). Le plein déport se fait via la
+        // marge du parent.
+        margin: EdgeInsets.zero,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
         child: Column(
           children: [
             Row(
@@ -556,9 +667,17 @@ class ProfileRow extends StatelessWidget {
                 Icon(icon, size: 22, color: fg2),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: fg2)),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: fg2,
+                    ),
+                  ),
                 ),
-                if (value != null) Text(value!, style: TextStyle(fontSize: 14, color: muted)),
+                if (value != null)
+                  Text(value!, style: TextStyle(fontSize: 14, color: muted)),
                 if (value != null) const SizedBox(width: 8),
                 trailing ?? Icon(Icons.chevron_right, size: 18, color: border),
               ],
@@ -580,7 +699,14 @@ class FormError extends StatelessWidget {
     if (message == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 4),
-      child: Text(message!, style: const TextStyle(fontSize: 12, color: AppColors.danger, height: 1.3)),
+      child: Text(
+        message!,
+        style: const TextStyle(
+          fontSize: 12,
+          color: AppColors.danger,
+          height: 1.3,
+        ),
+      ),
     );
   }
 }
@@ -596,7 +722,12 @@ class SectionGroupLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
         text.toUpperCase(),
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted, letterSpacing: 0.5),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: muted,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
