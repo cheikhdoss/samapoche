@@ -3,7 +3,7 @@ name: CI Mobile — Qualité · Tests · Sécurité · Build
 # Pipeline mobile (schéma AFI) :
 #   1. Analyse statique (dart format + flutter analyze)
 #   2. Tests unitaires/widgets (couverture) + tests d'intégration (E2E hermétique)
-#   3. SAST : SonarQube (portique côté serveur) + MobSF (scan de l'APK)
+#   3. SAST : SonarQube (portique côté serveur) + MobSF (mobsfscan → Code scanning)
 #   4. Quality Gate : couverture de lignes ≥ seuil (échelonné)
 #   5. Build Android signé (APK + AAB, flavor staging)
 on:
@@ -154,20 +154,29 @@ jobs:
           name: aab-staging
           path: build/app/outputs/bundle/stagingRelease/app-staging-release.aab
 
-  # ── Étape 3b · SAST mobile MobSF (scan de l'APK, skip si secret absent) ─────
+  # ── Étape 3b · SAST mobile MobSF (mobsfscan) ───────────────────────────────
+  # Scanne le code source mobile (Kotlin/Java) et publie les résultats dans
+  # l'onglet Security → Code scanning du dépôt (fichier SARIF). Le scan APK
+  # complet nécessite un serveur MobSF (service Docker) : à brancher plus tard.
   mobsf:
     name: 3b · SAST mobile MobSF
-    needs: build-android
+    needs: tests
     runs-on: ubuntu-latest
-    env:
-      MOBSF_API_KEY: ${{ secrets.MOBSF_API_KEY }}
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/setup-python@v6
         with:
-          name: apk-staging
-      - uses: MobSF/mobsf-scan-github-action@v2
-        if: ${{ env.MOBSF_API_KEY != '' }}
+          python-version: '3.12'
+      - name: mobsfscan
+        uses: MobSF/mobsfscan@main
         with:
-          target: app-staging-release.apk
-          upload_sarif: true
+          args: '. --sarif --output results.sarif || true'
+      - name: Publier le rapport SARIF (Code scanning)
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: mobsf
