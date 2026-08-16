@@ -50,7 +50,11 @@ Future<void> runAppWith({
   final api = Api(baseUrl: apiBaseUrl, client: client);
   final cache = HiveCache();
   await cache.init();
-  final state = AppState(api: api, cache: cache, tokenStorage: TokenStorage());
+  final state = AppState.create(
+    api: api,
+    cache: cache,
+    tokenStorage: TokenStorage(),
+  );
 
   runApp(
     SamaPocheApp(

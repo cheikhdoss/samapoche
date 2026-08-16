@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:samapoche/models/models.dart';
+import 'package:samapoche/domain/models.dart';
 import 'package:samapoche/testing/fake_backend.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,7 +35,7 @@ void main() {
       expect(err, isNull);
       expect(ctx.state.user, isNotNull);
       expect(ctx.state.user!.fullName, 'Test User');
-      expect(ctx.state.api.token, 'tok-test');
+      expect(ctx.state.auth.token, 'tok-test');
       expect(ctx.state.transactions, hasLength(2));
       expect(ctx.state.notifications, hasLength(1));
       expect(ctx.state.hasPendingSync, isFalse);
@@ -47,7 +47,7 @@ void main() {
 
       expect(err, 'Identifiants incorrects');
       expect(ctx.state.user, isNull);
-      expect(ctx.state.api.token, isNull);
+      expect(ctx.state.auth.token, isNull);
     });
 
     test('réseau indisponible → erreur FR, aucun user', () async {
@@ -68,7 +68,7 @@ void main() {
       await ctx.state.logout();
 
       expect(ctx.state.user, isNull);
-      expect(ctx.state.api.token, isNull);
+      expect(ctx.state.auth.token, isNull);
       expect(ctx.state.transactions, isEmpty);
     });
   });
@@ -124,7 +124,7 @@ void main() {
 
         expect(ctx.state.sessionExpired, isTrue);
         expect(ctx.state.user, isNull);
-        expect(ctx.state.api.token, isNull);
+        expect(ctx.state.auth.token, isNull);
       },
     );
   });

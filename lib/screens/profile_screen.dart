@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:samapoche/domain/models.dart';
 import 'package:samapoche/env.dart';
-import 'package:samapoche/models/models.dart';
 import 'package:samapoche/router.dart';
 import 'package:samapoche/state/app_state.dart';
 import 'package:samapoche/theme.dart';

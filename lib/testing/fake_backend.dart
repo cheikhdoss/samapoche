@@ -214,16 +214,16 @@ class TestContext {
 
 Future<TestContext> createTestContext() async {
   final backend = TestBackend(TestControls());
-  final state = AppState(
+  final state = AppState.create(
     api: Api(baseUrl: 'http://test.local', client: backend.client),
     cache: MemoryCache(),
-    tokenStorage: TokenStorage(storage: _FakeSecureStorage()),
+    tokenStorage: TokenStorage(storage: FakeSecureStorage()),
   );
   return TestContext(state: state, backend: backend);
 }
 
 /// Remplace le stockage DPAPI/Keychain par une version en mémoire pour les tests.
-class _FakeSecureStorage extends FlutterSecureStorage {
+class FakeSecureStorage extends FlutterSecureStorage {
   String? _value;
 
   @override

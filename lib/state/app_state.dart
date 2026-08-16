@@ -3,8 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
+import 'package:samapoche/data/repositories/auth_repository.dart';
+import 'package:samapoche/data/repositories/budgets_repository.dart';
+import 'package:samapoche/data/repositories/categories_repository.dart';
+import 'package:samapoche/data/repositories/chat_repository.dart';
+import 'package:samapoche/data/repositories/notifications_repository.dart';
+import 'package:samapoche/data/repositories/transactions_repository.dart';
+import 'package:samapoche/domain/models.dart';
+import 'package:samapoche/domain/usecases.dart';
 import 'package:samapoche/models/dto.dart';
-import 'package:samapoche/models/models.dart';
 import 'package:samapoche/services/api_client.dart';
 import 'package:samapoche/services/cache.dart';
 import 'package:samapoche/services/observability.dart';
@@ -12,17 +19,65 @@ import 'package:samapoche/services/token_storage.dart';
 import 'package:samapoche/utils/format.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// État applicatif : conteneur d'état UI + orchestration des données.
+///
+/// Depuis le refactor « repository / use cases », [AppState] ne parle plus
+/// au réseau ni au cache : il délègue aux repositories (frontière
+/// DTO ↔ domaine) et au [SyncUseCase] (orchestration multi-agrégats), et ne
+/// garde que l'état de présentation et les préférences utilisateur.
 class AppState extends ChangeNotifier {
-  final Api api;
-  final CacheStore cache;
-  final TokenStorage tokenStorage;
+  final AuthRepository auth;
+  final CategoriesRepository categoriesRepository;
+  final TransactionsRepository transactionsRepository;
+  final BudgetsRepository budgetsRepository;
+  final NotificationsRepository notificationsRepository;
+  final ChatRepository chatRepository;
+  final SyncUseCase syncUseCase;
   final Logger _log = buildLogger('AppState');
 
   AppState({
-    required this.api,
-    required this.cache,
-    required this.tokenStorage,
+    required this.auth,
+    required this.categoriesRepository,
+    required this.transactionsRepository,
+    required this.budgetsRepository,
+    required this.notificationsRepository,
+    required this.chatRepository,
+    required this.syncUseCase,
   });
+
+  /// Assemblage par défaut (app et tests) : câble les repositories sur le
+  /// transport HTTP, le cache et le stockage sécurisé du token.
+  factory AppState.create({
+    required Api api,
+    required CacheStore cache,
+    required TokenStorage tokenStorage,
+  }) {
+    final auth = AuthRepository(
+      api: api,
+      cache: cache,
+      tokenStorage: tokenStorage,
+    );
+    final categories = CategoriesRepository(api: api, cache: cache);
+    final transactions = TransactionsRepository(api: api, cache: cache);
+    final budgets = BudgetsRepository(api: api, cache: cache);
+    final notifications = NotificationsRepository(api: api, cache: cache);
+    final chat = ChatRepository(api: api);
+    return AppState(
+      auth: auth,
+      categoriesRepository: categories,
+      transactionsRepository: transactions,
+      budgetsRepository: budgets,
+      notificationsRepository: notifications,
+      chatRepository: chat,
+      syncUseCase: SyncUseCase(
+        auth: auth,
+        categories: categories,
+        transactions: transactions,
+        budgets: budgets,
+        notifications: notifications,
+      ),
+    );
+  }
 
   SharedPreferences? _prefs;
   bool _loaded = false;
@@ -69,9 +124,9 @@ class AppState extends ChangeNotifier {
     ecoData = _prefs!.getBool('samapoche_eco') ?? false;
     budgetAuto = _prefs!.getBool('samapoche_budget_auto') ?? true;
 
-    final stored = await tokenStorage.read() ?? _migrateLegacyToken();
+    final stored = await auth.restoreToken() ?? _migrateLegacyToken();
     if (stored != null && stored.isNotEmpty) {
-      api.token = stored;
+      auth.token = stored;
       await refresh();
     }
 
@@ -83,7 +138,7 @@ class AppState extends ChangeNotifier {
   String? _migrateLegacyToken() {
     final legacy = _prefs!.getString('samapoche_token');
     if (legacy == null || legacy.isEmpty) return null;
-    unawaited(tokenStorage.write(legacy));
+    unawaited(auth.persistToken(legacy));
     unawaited(_prefs!.remove('samapoche_token'));
     return legacy;
   }
@@ -92,20 +147,20 @@ class AppState extends ChangeNotifier {
 
   Future<void> _sync({required bool silent}) async {
     if (_syncing) return;
-    if (api.token == null) return;
+    if (!auth.hasToken) return;
     _syncing = true;
     _lastSyncError = null;
     if (!silent) notifyListeners();
     try {
-      final me = await api.me();
-      user = UserProfile.fromDto(me);
-      await cache.storeUser(user!.toJson());
-
-      await _loadCategories();
-      await _flushPending();
-      await _syncTransactions();
-      await _syncBudgets();
-      await _syncNotifications();
+      final result = await syncUseCase.run();
+      user = result.user;
+      _categoryIds = {
+        for (final e in result.categoryNames.entries) e.value: e.key,
+      };
+      transactions = result.transactions;
+      _applyBudgets(result.budgets);
+      notifications = _toAppNotifications(result.notifications);
+      _pendingCount = result.pendingRemaining;
       _sessionExpired = false;
     } on ApiException catch (e) {
       _log.warning('Sync échoué: ${e.message}');
@@ -128,35 +183,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadCategories() async {
-    final list = await api.categories();
-    _categoryIds = {for (final c in list) c.name: c.id};
-    await cache.storeCategories([for (final c in list) c.toJson()]);
+  void _applyBudgets(List<BudgetStatusDto> budgets) {
+    final alimentation = budgets.where((b) => b.categoryName == 'Alimentation');
+    if (alimentation.isEmpty) return;
+    final b = alimentation.first;
+    _alimentationBudgetId = b.id;
+    budget = b.amount.round();
+    unawaited(_prefs!.setInt('samapoche_budget', budget));
   }
 
-  Future<void> _syncTransactions() async {
-    final list = await api.transactions();
-    transactions = [for (final d in list) Txn.fromDto(d, _categoryNames)]
-      ..sort((a, b) => b.date.compareTo(a.date));
-    await cache.storeTransactions([for (final d in list) d.toJson()]);
-  }
-
-  Future<void> _syncBudgets() async {
-    final list = await api.budgets();
-    final alimentation = list.where((b) => b.categoryName == 'Alimentation');
-    if (alimentation.isNotEmpty) {
-      final b = alimentation.first;
-      _alimentationBudgetId = b.id;
-      budget = b.amount.round();
-      await _prefs!.setInt('samapoche_budget', budget);
-    }
-    await cache.storeBudgets([for (final b in list) b.toJson()]);
-  }
-
-  Future<void> _syncNotifications() async {
-    final list = await api.notifications();
+  List<AppNotification> _toAppNotifications(List<NotificationDto> list) {
     final now = DateTime.now();
-    notifications = [
+    return [
       for (final n in list)
         AppNotification.fromDto(
           n,
@@ -164,98 +202,38 @@ class AppState extends ChangeNotifier {
           group: _notifGroup(n.createdAt.toLocal(), now),
         ),
     ];
-    await cache.storeNotifications([for (final n in list) n.toJson()]);
-  }
-
-  /// Rejoue les écritures différées (créées hors-ligne).
-  Future<void> _flushPending() async {
-    final pending = cache.pendingTransactions;
-    if (pending == null || pending.isEmpty) return;
-    final remaining = <Map<String, dynamic>>[];
-    for (final raw in pending) {
-      final payload = raw as Map<String, dynamic>;
-      try {
-        await api.createTransaction(
-          amount: (payload['amount'] as num).toDouble(),
-          type: payload['type'] == 'income'
-              ? TransactionType.income
-              : TransactionType.expense,
-          categoryId: (payload['category_id'] as num).toInt(),
-          description: payload['description'] as String?,
-          date: payload['transaction_date'] != null
-              ? DateTime.parse(payload['transaction_date'] as String)
-              : null,
-        );
-      } on ApiException catch (e) {
-        _log.warning('Rejeu d\'une écriture différée échoué: ${e.message}');
-        remaining.add(payload);
-      }
-    }
-    _pendingCount = remaining.length;
-    if (remaining.isEmpty) {
-      await cache.clearPendingTransactions();
-    } else {
-      await cache.storePendingTransactions(remaining);
-    }
   }
 
   /// Hors-ligne : dernière image connue du serveur, sinon rien.
   void _loadCachedData() {
-    if (_categoryIds.isEmpty) {
-      final c = cache.categories;
-      if (c != null) {
-        final cats = [
-          for (final e in c)
-            CategoryDto.fromJson(Map<String, dynamic>.from(e as Map)),
-        ];
-        _categoryIds = {for (final cat in cats) cat.name: cat.id};
-      }
+    final names = categoriesRepository.cachedNames();
+    if (_categoryIds.isEmpty && names != null) {
+      _categoryIds = {for (final e in names.entries) e.value: e.key};
     }
-    if (user == null) {
-      final u = cache.user;
-      if (u != null) user = UserProfile.fromJson(u.cast<String, dynamic>());
+    user ??= auth.cachedUser();
+    if (transactions.isEmpty && names != null) {
+      transactions = transactionsRepository.cached(categoryNames: names);
     }
-    if (transactions.isEmpty) {
-      final t = cache.transactions;
-      if (t != null) {
-        transactions = [
-          for (final e in t)
-            Txn.fromDto(
-              TransactionDto.fromJson(Map<String, dynamic>.from(e as Map)),
-              _categoryNames,
-            ),
-        ]..sort((a, b) => b.date.compareTo(a.date));
-      }
-    }
+    _pendingCount = transactionsRepository.pendingCount;
   }
 
   // ─── Auth ────────────────────────────────────────────────
   Future<String?> signup(UserProfile p, String password) async {
-    try {
-      final token = await api.register(
-        email: p.email,
-        password: password,
-        fullName: p.fullName,
-      );
-      api.token = token.accessToken;
-      await tokenStorage.write(token.accessToken);
-      await _sync(silent: true);
-      return null;
-    } on ApiException catch (e) {
-      return e.message;
-    }
+    final error = await auth.signup(
+      email: p.email,
+      password: password,
+      fullName: p.fullName,
+    );
+    if (error != null) return error;
+    await _sync(silent: true);
+    return null;
   }
 
   Future<String?> login(String email, String password) async {
-    try {
-      final token = await api.login(email: email, password: password);
-      api.token = token.accessToken;
-      await tokenStorage.write(token.accessToken);
-      await _sync(silent: true);
-      return null;
-    } on ApiException catch (e) {
-      return e.message;
-    }
+    final error = await auth.login(email: email, password: password);
+    if (error != null) return error;
+    await _sync(silent: true);
+    return null;
   }
 
   Future<void> logout({bool silent = false}) async {
@@ -263,18 +241,16 @@ class AppState extends ChangeNotifier {
     transactions = [];
     notifications = [];
     chat.clear();
-    api.token = null;
     _alimentationBudgetId = null;
     _sessionExpired = false;
     _lastSyncError = null;
-    await tokenStorage.delete();
-    await cache.clearUserData();
+    await auth.logout();
     if (!silent) notifyListeners();
   }
 
   Future<void> saveProfile(UserProfile p) async {
     user = p;
-    await cache.storeUser(p.toJson());
+    await auth.storeLocalUser(p);
     notifyListeners();
   }
 
@@ -285,59 +261,43 @@ class AppState extends ChangeNotifier {
   Future<String?> addTxn(Txn t) async {
     final catId = _categoryIds[t.category];
     if (catId == null) return 'Catégorie inconnue du serveur.';
-    final payload = {
-      'amount': t.amount.toDouble(),
-      'type': t.type.name,
-      'category_id': catId,
-      if (t.description.isNotEmpty) 'description': t.description,
-      'transaction_date': t.date.toUtc().toIso8601String(),
-    };
     transactions.insert(0, t);
-    await _cacheTxns();
+    await _mirror();
     notifyListeners();
-    try {
-      final created = await api.createTransaction(
-        amount: t.amount.toDouble(),
-        type: t.type == TxnType.income
-            ? TransactionType.income
-            : TransactionType.expense,
-        categoryId: catId,
-        description: t.description.isNotEmpty ? t.description : null,
-        date: t.date,
-      );
-      final i = transactions.indexWhere((x) => x.id == t.id);
-      if (i >= 0) transactions[i] = Txn.fromDto(created, _categoryNames);
-      await _cacheTxns();
-      return null;
-    } on ApiException catch (e) {
-      _log.info('Création différée (hors-ligne): ${e.message}');
-      await cache.storePendingTransactions([
-        ...(cache.pendingTransactions ?? <dynamic>[])
-            .cast<Map<String, dynamic>>(),
-        payload,
-      ]);
-      _pendingCount += 1;
-      notifyListeners();
-      return null;
+    final outcome = await transactionsRepository.createOfflineFirst(
+      local: t,
+      categoryId: catId,
+      categoryNames: _categoryNames,
+    );
+    switch (outcome) {
+      case CreateTxnSuccess(:final txn):
+        final i = transactions.indexWhere((x) => x.id == t.id);
+        if (i >= 0) transactions[i] = txn;
+        await _mirror();
+      case CreateTxnDeferred(:final pendingCount):
+        _pendingCount = pendingCount;
+        notifyListeners();
     }
+    return null;
   }
 
   Future<String?> updateTxn(Txn t) async {
-    if (api.token == null) return 'Session expirée. Reconnectez-vous.';
+    if (!auth.hasToken) return 'Session expirée. Reconnectez-vous.';
     final id = int.tryParse(t.id);
     if (id == null) return 'Transaction introuvable.';
     final catId = _categoryIds[t.category];
     if (catId == null) return 'Catégorie inconnue du serveur.';
     try {
-      await api.updateTransaction(
+      final updated = await transactionsRepository.update(
         id,
         amount: t.amount.toDouble(),
         categoryId: catId,
         description: t.description.isNotEmpty ? t.description : null,
+        categoryNames: _categoryNames,
       );
       final i = transactions.indexWhere((x) => x.id == t.id);
-      if (i >= 0) transactions[i] = t;
-      await _cacheTxns();
+      if (i >= 0) transactions[i] = updated;
+      await _mirror();
       notifyListeners();
       return null;
     } on ApiException catch (e) {
@@ -345,21 +305,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _cacheTxns() async {
-    await cache.storeTransactions([
-      for (final t in transactions)
-        {
-          'id': int.tryParse(t.id) ?? 0,
-          'user_id': user?.id ?? 0,
-          'amount': t.amount.toDouble(),
-          'type': t.type.name,
-          'description': t.description.isEmpty ? null : t.description,
-          'category_id': _categoryIds[t.category] ?? 0,
-          'transaction_date': t.date.toUtc().toIso8601String(),
-          'created_at': t.date.toUtc().toIso8601String(),
-        },
-    ]);
-  }
+  Future<void> _mirror() => transactionsRepository.mirror(
+    transactions,
+    categoryIds: _categoryIds,
+    userId: user?.id,
+  );
 
   // ─── Dashboard computed ──────────────────────────────────
   int get balance => transactions.fold(0, (s, t) => s + t.signed);
@@ -428,7 +378,7 @@ class AppState extends ChangeNotifier {
     notifications = [for (final n in notifications) n.copyWith(read: true)];
     notifyListeners();
     try {
-      await api.markAllNotificationsRead();
+      await notificationsRepository.markAllRead();
     } on ApiException catch (e) {
       _log.warning('markAllRead: ${e.message}');
     }
@@ -441,7 +391,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (n.id != null) {
       try {
-        await api.markNotificationRead(n.id!);
+        await notificationsRepository.markRead(n.id!);
       } on ApiException catch (e) {
         _log.warning('markRead: ${e.message}');
       }
@@ -449,14 +399,7 @@ class AppState extends ChangeNotifier {
   }
 
   // ─── Chat ────────────────────────────────────────────────
-  Future<String> chatReply(String message) async {
-    try {
-      final reply = await api.chat(message);
-      return reply.reply;
-    } on ApiException catch (e) {
-      return 'Je n\'ai pas pu répondre pour le moment. ${e.message}';
-    }
-  }
+  Future<String> chatReply(String message) => chatRepository.reply(message);
 
   void clearChat() {
     chat
@@ -482,9 +425,12 @@ class AppState extends ChangeNotifier {
     final now = DateTime.now();
     try {
       if (_alimentationBudgetId != null) {
-        await api.updateBudget(_alimentationBudgetId!, amount: v.toDouble());
+        await budgetsRepository.update(
+          _alimentationBudgetId!,
+          amount: v.toDouble(),
+        );
       } else {
-        final created = await api.createBudget(
+        final created = await budgetsRepository.create(
           categoryId: catId,
           amount: v.toDouble(),
           month: now.month,
