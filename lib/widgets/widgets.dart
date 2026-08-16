@@ -654,7 +654,10 @@ class ProfileRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: -16),
+        // Pas de marge négative : l'assertion `isNonNegative` de Container
+        // plante en debug (Flutter ≥ 3.13). Le plein déport se fait via la
+        // marge du parent.
+        margin: EdgeInsets.zero,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
         child: Column(

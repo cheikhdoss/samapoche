@@ -1,0 +1,41 @@
+name: Signature Android
+description: >-
+  Reconstruit le keystore (base64) et écrit android/key.properties pour signer
+  les builds release. No-op si aucun secret n'est fourni (builds non signés).
+
+# Les actions composites ne peuvent pas lire le contexte `secrets` :
+# les valeurs sont passées en entrées par les workflows appelants.
+inputs:
+  keystore-base64:
+    description: Keystore JKS encodé en base64 (secret ANDROID_KEYSTORE_BASE64)
+    required: false
+    default: ''
+  keystore-password:
+    description: Mot de passe du keystore (secret KEYSTORE_PASSWORD)
+    required: false
+    default: ''
+  key-alias:
+    description: Alias de la clé (secret KEY_ALIAS)
+    required: false
+    default: ''
+  key-password:
+    description: Mot de passe de la clé (secret KEY_PASSWORD)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Reconstruire le keystore
+      if: ${{ inputs.keystore-password != '' }}
+      shell: bash
+      run: echo "${{ inputs.keystore-base64 }}" | base64 -d > android/key.jks
+
+    - name: Écrire les identifiants de signature
+      if: ${{ inputs.keystore-password != '' }}
+      shell: bash
+      run: |
+        echo "storeFile=key.jks" >> android/key.properties
+        echo "storePassword=${{ inputs.keystore-password }}" >> android/key.properties
+        echo "keyAlias=${{ inputs.key-alias }}" >> android/key.properties
+        echo "keyPassword=${{ inputs.key-password }}" >> android/key.properties

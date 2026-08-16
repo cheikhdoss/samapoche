@@ -189,7 +189,12 @@ class AppState extends ChangeNotifier {
     final b = alimentation.first;
     _alimentationBudgetId = b.id;
     budget = b.amount.round();
-    unawaited(_prefs!.setInt('samapoche_budget', budget));
+    // Les préférences ne sont disponibles qu'après `init()` : une
+    // synchronisation précoce (tests) ne doit pas planter.
+    final prefs = _prefs;
+    if (prefs != null) {
+      unawaited(prefs.setInt('samapoche_budget', budget));
+    }
   }
 
   List<AppNotification> _toAppNotifications(List<NotificationDto> list) {

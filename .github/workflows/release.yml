@@ -1,0 +1,90 @@
+name: Release Android
+
+# Release semver (schéma AFI, étape 5 côté production) :
+#   1. Créer un tag vX.Y.Z (sur main, après fusion de la PR)
+#   2. Ce workflow construit l'APK + l'AAB du flavor prod, signés
+#   3. Il crée la GitHub Release avec les deux artefacts et le CHANGELOG
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# La version intégrée au build (versionName/versionCode) est dérivée du tag :
+#   versionName = X.Y.Z (sans le préfixe v), versionCode = run number.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build prod signé + GitHub Release
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.7
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Exiger la signature (une release non signée doit échouer)
+        if: ${{ env.KEYSTORE_PASSWORD == '' }}
+        run: |
+          echo "::error::La signature Android n'est pas configurée : KEYSTORE_PASSWORD (et ANDROID_KEYSTORE_BASE64, KEY_ALIAS, KEY_PASSWORD)."
+          exit 1
+
+      - name: Signature Android (keystore + key.properties)
+        uses: ./.github/actions/android-signing
+        with:
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.KEY_ALIAS }}
+          key-password: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Build APK prod — v${GITHUB_REF_NAME#v}
+        run: >-
+          flutter build apk --release --flavor prod -t lib/main_prod.dart
+          --build-name="${GITHUB_REF_NAME#v}"
+          --build-number="${{ github.run_number }}"
+
+      - name: Build AAB prod — v${GITHUB_REF_NAME#v}
+        run: >-
+          flutter build appbundle --release --flavor prod -t lib/main_prod.dart
+          --build-name="${GITHUB_REF_NAME#v}"
+          --build-number="${{ github.run_number }}"
+
+      - name: Générer les notes de version (section du CHANGELOG)
+        id: notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          body="$(awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { capture = 1; next }
+            capture && /^## / { exit }
+            capture { print }
+          ' CHANGELOG.md)"
+          if [ -z "$body" ]; then
+            echo "::error::Aucune section '## [$version]' dans CHANGELOG.md"
+            exit 1
+          fi
+          # Champ multiligne : numérisé pour être passé par l'API (delimiter).
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$body" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Publier la GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SamaPoche ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |
+            build/app/outputs/flutter-apk/app-prod-release.apk
+            build/app/outputs/bundle/prodRelease/app-prod-release.aab
