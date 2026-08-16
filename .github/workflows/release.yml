@@ -9,9 +9,20 @@ name: Release Android
 #
 # La version intégrée au build (versionName/versionCode) est dérivée du tag :
 #   versionName = X.Y.Z (sans le préfixe v), versionCode = run number.
+#
+# Mode dry-run (bouton "Run workflow") : valide tout le pipeline (builds prod,
+# signature si secrets présents, extraction du CHANGELOG) SANS pousser de tag,
+# exiger la signature ni publier de release.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Pipeline complet sans publication (pas de tag, pas de release)
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -35,7 +46,7 @@ jobs:
       - run: flutter pub get
 
       - name: Exiger la signature (une release non signée doit échouer)
-        if: ${{ env.KEYSTORE_PASSWORD == '' }}
+        if: ${{ !inputs.dry-run && env.KEYSTORE_PASSWORD == '' }}
         run: |
           echo "::error::La signature Android n'est pas configurée : KEYSTORE_PASSWORD (et ANDROID_KEYSTORE_BASE64, KEY_ALIAS, KEY_PASSWORD)."
           exit 1
@@ -48,13 +59,23 @@ jobs:
           key-alias: ${{ secrets.KEY_ALIAS }}
           key-password: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Build APK prod (dry-run, version pubspec)
+        if: ${{ inputs.dry-run }}
+        run: flutter build apk --release --flavor prod -t lib/main_prod.dart
+
       - name: Build APK prod — v${GITHUB_REF_NAME#v}
+        if: ${{ !inputs.dry-run }}
         run: >-
           flutter build apk --release --flavor prod -t lib/main_prod.dart
           --build-name="${GITHUB_REF_NAME#v}"
           --build-number="${{ github.run_number }}"
 
+      - name: Build AAB prod (dry-run, version pubspec)
+        if: ${{ inputs.dry-run }}
+        run: flutter build appbundle --release --flavor prod -t lib/main_prod.dart
+
       - name: Build AAB prod — v${GITHUB_REF_NAME#v}
+        if: ${{ !inputs.dry-run }}
         run: >-
           flutter build appbundle --release --flavor prod -t lib/main_prod.dart
           --build-name="${GITHUB_REF_NAME#v}"
@@ -62,6 +83,7 @@ jobs:
 
       - name: Générer les notes de version (section du CHANGELOG)
         id: notes
+        if: ${{ !inputs.dry-run }}
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -80,6 +102,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Publier la GitHub Release
+        if: ${{ !inputs.dry-run }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
