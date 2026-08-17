@@ -7,6 +7,7 @@ import 'package:samapoche/data/repositories/auth_repository.dart';
 import 'package:samapoche/data/repositories/budgets_repository.dart';
 import 'package:samapoche/data/repositories/categories_repository.dart';
 import 'package:samapoche/data/repositories/chat_repository.dart';
+import 'package:samapoche/data/repositories/dashboard_repository.dart';
 import 'package:samapoche/data/repositories/notifications_repository.dart';
 import 'package:samapoche/data/repositories/transactions_repository.dart';
 import 'package:samapoche/domain/models.dart';
@@ -32,6 +33,7 @@ class AppState extends ChangeNotifier {
   final BudgetsRepository budgetsRepository;
   final NotificationsRepository notificationsRepository;
   final ChatRepository chatRepository;
+  final DashboardRepository dashboardRepository;
   final SyncUseCase syncUseCase;
   final Logger _log = buildLogger('AppState');
 
@@ -42,6 +44,7 @@ class AppState extends ChangeNotifier {
     required this.budgetsRepository,
     required this.notificationsRepository,
     required this.chatRepository,
+    required this.dashboardRepository,
     required this.syncUseCase,
   });
 
@@ -62,6 +65,7 @@ class AppState extends ChangeNotifier {
     final budgets = BudgetsRepository(api: api, cache: cache);
     final notifications = NotificationsRepository(api: api, cache: cache);
     final chat = ChatRepository(api: api);
+    final dashboard = DashboardRepository(api: api);
     return AppState(
       auth: auth,
       categoriesRepository: categories,
@@ -69,6 +73,7 @@ class AppState extends ChangeNotifier {
       budgetsRepository: budgets,
       notificationsRepository: notifications,
       chatRepository: chat,
+      dashboardRepository: dashboard,
       syncUseCase: SyncUseCase(
         auth: auth,
         categories: categories,
@@ -102,6 +107,9 @@ class AppState extends ChangeNotifier {
   String? _lastSyncError;
   bool _sessionExpired = false;
   int _pendingCount = 0;
+
+  Map<String, dynamic>? _serverBalance;
+  Map<String, dynamic>? _serverStats;
 
   bool get loaded => _loaded;
   bool get syncing => _syncing;
@@ -162,6 +170,7 @@ class AppState extends ChangeNotifier {
       notifications = _toAppNotifications(result.notifications);
       _pendingCount = result.pendingRemaining;
       _sessionExpired = false;
+      await _fetchServerDashboard();
     } on ApiException catch (e) {
       _log.warning('Sync échoué: ${e.message}');
       if (e.statusCode == 401) {
@@ -209,6 +218,23 @@ class AppState extends ChangeNotifier {
     ];
   }
 
+  /// Solde et stats du serveur (source de vérité) : échec silencieux,
+  /// l'app retombe alors sur le calcul local.
+  Future<void> _fetchServerDashboard() async {
+    try {
+      _serverBalance = await dashboardRepository.balance();
+    } on Exception catch (e) {
+      _log.fine('Dashboard balance indisponible: $e');
+      _serverBalance = null;
+    }
+    try {
+      _serverStats = await dashboardRepository.stats();
+    } on Exception catch (e) {
+      _log.fine('Dashboard stats indisponibles: $e');
+      _serverStats = null;
+    }
+  }
+
   /// Hors-ligne : dernière image connue du serveur, sinon rien.
   void _loadCachedData() {
     final names = categoriesRepository.cachedNames();
@@ -247,6 +273,8 @@ class AppState extends ChangeNotifier {
     notifications = [];
     chat.clear();
     _alimentationBudgetId = null;
+    _serverBalance = null;
+    _serverStats = null;
     _sessionExpired = false;
     _lastSyncError = null;
     await auth.logout();
@@ -278,6 +306,8 @@ class AppState extends ChangeNotifier {
       case CreateTxnSuccess(:final txn):
         final i = transactions.indexWhere((x) => x.id == t.id);
         if (i >= 0) transactions[i] = txn;
+        _serverBalance = null;
+        _serverStats = null;
         await _mirror();
       case CreateTxnDeferred(:final pendingCount):
         _pendingCount = pendingCount;
@@ -302,6 +332,8 @@ class AppState extends ChangeNotifier {
       );
       final i = transactions.indexWhere((x) => x.id == t.id);
       if (i >= 0) transactions[i] = updated;
+      _serverBalance = null;
+      _serverStats = null;
       await _mirror();
       notifyListeners();
       return null;
@@ -317,7 +349,12 @@ class AppState extends ChangeNotifier {
   );
 
   // ─── Dashboard computed ──────────────────────────────────
-  int get balance => transactions.fold(0, (s, t) => s + t.signed);
+  /// Solde du serveur quand il est frais, sinon calcul local (hors-ligne).
+  int get balance {
+    final v = _serverBalance?['balance'];
+    if (v is num) return v.round();
+    return transactions.fold(0, (s, t) => s + t.signed);
+  }
 
   List<Txn> get monthTxns {
     final now = DateTime.now();
@@ -326,13 +363,21 @@ class AppState extends ChangeNotifier {
         .toList();
   }
 
-  int get monthIncome => monthTxns
-      .where((t) => t.type == TxnType.income)
-      .fold(0, (s, t) => s + t.amount);
+  int get monthIncome {
+    final v = _serverStats?['total_income'];
+    if (v is num) return v.round();
+    return monthTxns
+        .where((t) => t.type == TxnType.income)
+        .fold(0, (s, t) => s + t.amount);
+  }
 
-  int get monthExpense => monthTxns
-      .where((t) => t.type == TxnType.expense)
-      .fold(0, (s, t) => s + t.amount);
+  int get monthExpense {
+    final v = _serverStats?['total_expenses'];
+    if (v is num) return v.round();
+    return monthTxns
+        .where((t) => t.type == TxnType.expense)
+        .fold(0, (s, t) => s + t.amount);
+  }
 
   int get budgetSpent => transactions
       .where(
