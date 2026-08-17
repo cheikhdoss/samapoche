@@ -265,8 +265,7 @@ class Api {
           as Map<String, dynamic>;
 
   Future<Map<String, dynamic>> dashboardStats() async =>
-      await _request('GET', '/api/v1/dashboard/stats')
-          as Map<String, dynamic>;
+      await _request('GET', '/api/v1/dashboard/stats') as Map<String, dynamic>;
 
   // ─── Assistant IA ────────────────────────────────────────
   Future<ChatReplyDto> chat(String message) async {

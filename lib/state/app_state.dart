@@ -236,7 +236,8 @@ class AppState extends ChangeNotifier {
   }
 
   /// Hors-ligne : dernière image connue du serveur, sinon rien.
-  void _loadCachedData() {    final names = categoriesRepository.cachedNames();
+  void _loadCachedData() {
+    final names = categoriesRepository.cachedNames();
     if (_categoryIds.isEmpty && names != null) {
       _categoryIds = {for (final e in names.entries) e.value: e.key};
     }
