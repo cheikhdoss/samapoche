@@ -200,6 +200,33 @@ class TestBackend {
       });
     }
 
+    if (p == '/api/v1/dashboard/balance') {
+      return _json({
+        'balance': 147500,
+        'total_income': 150000,
+        'total_expenses': 2500,
+        'month_income': 150000,
+        'month_expenses': 2500,
+      });
+    }
+    if (p == '/api/v1/dashboard/stats') {
+      return _json({
+        'month': DateTime.now().month,
+        'year': DateTime.now().year,
+        'total_expenses': 2500,
+        'total_income': 150000,
+        'balance': 147500,
+        'daily_average': 83.33,
+        'top_category_id': 1,
+        'top_category_name': 'Alimentation',
+        'top_category_amount': 2500,
+        'previous_month_expenses': 10000,
+        'previous_month_income': 100000,
+        'expenses_change_percent': -75.0,
+        'income_change_percent': 50.0,
+      });
+    }
+
     return _err(404, 'Endpoint inconnu: $p');
   }
 }

@@ -259,6 +259,15 @@ class Api {
     await _request('PUT', '/api/v1/notifications/read-all');
   }
 
+  // ─── Dashboard ───────────────────────────────────────────
+  Future<Map<String, dynamic>> dashboardBalance() async =>
+      await _request('GET', '/api/v1/dashboard/balance')
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> dashboardStats() async =>
+      await _request('GET', '/api/v1/dashboard/stats')
+          as Map<String, dynamic>;
+
   // ─── Assistant IA ────────────────────────────────────────
   Future<ChatReplyDto> chat(String message) async {
     final data = await _request(
