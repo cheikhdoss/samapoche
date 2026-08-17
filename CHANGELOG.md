@@ -6,6 +6,22 @@ Ce projet respecte [Semantic Versioning](https://semver.org/lang/fr/).
 Chaque release correspond à un tag `vX.Y.Z` ; la section du numéro de version
 est extraite automatiquement par le workflow de release.
 
+## [0.2.0] - 2026-08-17
+
+### Ajouté
+
+- **Dashboard serveur : source de vérité** — le solde et les stats du mois
+  (`/dashboard/balance`, `/dashboard/stats`) sont consommés après chaque
+  synchronisation ; calcul local conservé comme repli hors-ligne
+- Invalidation du cache serveur après chaque écriture (ajout, édition,
+  suppression de transaction) pour un affichage immédiatement exact
+- Faux backend étendu (handlers `dashboard/balance` et `dashboard/stats`)
+  pour les tests widget
+
+### Corrigé
+
+- Formatage (`dart format`) aligné pour la CI
+
 ## [0.1.0] - 2026-08-16
 
 ### Ajouté
